@@ -1,122 +1,102 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:savy/views/auth/login_screen.dart';
+import 'package:savy/views/splashScreen/splash_screen.dart' hide LoginScreen;
+import 'package:savy/views/mainLayout/main_layout.dart';
+import 'package:savy/views/legalScreen/legal_screens.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  runApp(const SavyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class SavyApp extends StatelessWidget {
+  const SavyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Savy',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3EFFA8),
+          brightness: Brightness.dark,
         ),
+        scaffoldBackgroundColor: const Color(0xFF060D1F),
+        fontFamily: 'Roboto',
+        useMaterial3: true,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+      initialRoute: AppRoutes.splash,
+      routes: {
+        AppRoutes.splash:   (_) => const SplashScreen(),
+        AppRoutes.login:    (_) => const LoginScreen(),
+        AppRoutes.signUp:   (_) => const SignUpScreen(),
+        AppRoutes.home:     (_) => const MainLayout(),
+        AppRoutes.terms:    (_) => const TermsScreen(),
+        AppRoutes.privacy:  (_) => const PrivacyScreen(),
+      },
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case AppRoutes.splash:
+            return _fadeRoute(const SplashScreen());
+          case AppRoutes.login:
+            return _fadeRoute(const LoginScreen());
+          case AppRoutes.signUp:
+            return _slideRoute(const SignUpScreen(), fromRight: true);
+          case AppRoutes.home:
+            return _slideRoute(const MainLayout(), fromRight: false);
+          case AppRoutes.terms:
+            return _slideRoute(const TermsScreen(), fromRight: true);
+          case AppRoutes.privacy:
+            return _slideRoute(const PrivacyScreen(), fromRight: true);
+          default:
+            return _fadeRoute(const LoginScreen());
+        }
+      },
     );
   }
+
+  static PageRouteBuilder _fadeRoute(Widget page) => PageRouteBuilder(
+    pageBuilder: (_, __, ___) => page,
+    transitionsBuilder: (_, animation, __, child) =>
+        FadeTransition(opacity: animation, child: child),
+    transitionDuration: const Duration(milliseconds: 400),
+  );
+
+  static PageRouteBuilder _slideRoute(Widget page, {bool fromRight = true}) =>
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, animation, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(fromRight ? 1.0 : 0.0, fromRight ? 0.0 : 0.06),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+          child: FadeTransition(opacity: animation, child: child),
+        ),
+        transitionDuration: const Duration(milliseconds: 350),
+      );
+}
+
+class AppRoutes {
+  AppRoutes._();
+  static const String splash  = '/';
+  static const String login   = '/login';
+  static const String signUp  = '/signup';
+  static const String home    = '/home';
+  static const String terms   = '/terms';
+  static const String privacy = '/privacy';
 }
