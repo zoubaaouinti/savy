@@ -1,6 +1,11 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../legalScreen/legal_screens.dart';
+import '../../services/auth_service.dart';
+
+// ══════════════════════════════════════════════════════════════
+//  SAVVY – LOGIN SCREEN  (Firebase Auth)
+// ══════════════════════════════════════════════════════════════
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +21,9 @@ class _LoginScreenState extends State<LoginScreen>
   final _passCtrl = TextEditingController();
   bool _obscurePass = true;
   bool _isLoading = false;
+  String? _errorMessage;
+
+  final _authService = AuthService();
 
   late final AnimationController _bgController;
   late final AnimationController _entranceController;
@@ -49,9 +57,7 @@ class _LoginScreenState extends State<LoginScreen>
       CurvedAnimation(parent: _entranceController, curve: Curves.easeOutBack),
     );
     Future.delayed(
-      const Duration(milliseconds: 100),
-      _entranceController.forward,
-    );
+        const Duration(milliseconds: 100), _entranceController.forward);
   }
 
   @override
@@ -63,45 +69,269 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ════════════════════════════════════════════════════════════
-  //  LOGIN → vérifie le formulaire puis redirige vers MainLayout
-  // ════════════════════════════════════════════════════════════
+  // ── Connexion Email ───────────────────────────────────────
   Future<void> _handleLogin() async {
-    // Étape 1 : valider email + mot de passe
     if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    setState(() => _isLoading = true);
+    final result = await _authService.signInWithEmail(
+      email: _emailCtrl.text,
+      password: _passCtrl.text,
+    );
 
-    // Étape 2 : TODO → remplacer par Firebase Auth
-    await Future.delayed(const Duration(seconds: 2));
-
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // Étape 3 : rediriger vers MainLayout et vider la pile
-    // (l'utilisateur ne peut plus revenir en arrière vers login)
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/home',         // route de MainLayout dans AppRoutes
-            (route) => false,
-      );
+    if (result.isSuccess) {
+      // ✅ Email vérifié → accès à l'app
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/home', (route) => false);
+    } else if (result.isEmailNotVerified) {
+      // 📧 Email pas encore vérifié → affiche le dialog
+      _showVerificationDialog();
+    } else {
+      setState(() => _errorMessage = result.errorMessage);
     }
   }
 
+  // ── Dialog : email non vérifié ────────────────────────────
+  void _showVerificationDialog() {
+    // Cooldown pour éviter le spam
+    int _cooldown = 0;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Lance le cooldown
+          void startCooldown() {
+            setDialogState(() => _cooldown = 60);
+            Future.doWhile(() async {
+              await Future.delayed(const Duration(seconds: 1));
+              if (!dialogContext.mounted) return false;
+              setDialogState(() => _cooldown--);
+              return _cooldown > 0;
+            });
+          }
+
+          return Dialog(
+            backgroundColor: const Color(0xFF0B1535),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(
+                  color: const Color(0xFF3EFFA8).withOpacity(0.3)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Icône ────────────────────────────────
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF3EFFA8).withOpacity(0.1),
+                      border: Border.all(
+                          color: const Color(0xFF3EFFA8).withOpacity(0.4)),
+                    ),
+                    child: const Icon(Icons.mark_email_unread_rounded,
+                        color: Color(0xFF3EFFA8), size: 30),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Titre ────────────────────────────────
+                  const Text(
+                    'Vérifiez votre email',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── Message ──────────────────────────────
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: const TextStyle(
+                          color: Color(0xFF6B8CAE),
+                          fontSize: 13,
+                          height: 1.6),
+                      children: [
+                        const TextSpan(
+                            text: 'Un email de vérification a été envoyé à\n'),
+                        TextSpan(
+                          text: _emailCtrl.text,
+                          style: const TextStyle(
+                              color: Color(0xFF3EFFA8),
+                              fontWeight: FontWeight.w600),
+                        ),
+                        const TextSpan(
+                            text:
+                            '\n\nCliquez sur le lien dans l\'email puis reconnectez-vous.'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Bouton : J'ai vérifié ──────────────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
+                        ),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text(
+                          'J\'ai vérifié mon email',
+                          style: TextStyle(
+                              color: Color(0xFF060D1F),
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Bouton : Renvoyer avec cooldown ──────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: _cooldown > 0
+                          ? null
+                          : () async {
+                        startCooldown();
+                        final result = await _authService
+                            .resendVerificationEmail(
+                          _emailCtrl.text,
+                          _passCtrl.text,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          _buildSnackBar(
+                            result.message ??
+                                result.errorMessage ??
+                                '',
+                            isError: !result.isEmailSent &&
+                                !result.isSuccess,
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: _cooldown > 0
+                              ? const Color(0xFF1A2E52)
+                              : const Color(0xFF3EFFA8).withOpacity(0.5),
+                        ),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.send_rounded,
+                            size: 15,
+                            color: _cooldown > 0
+                                ? const Color(0xFF3A5070)
+                                : const Color(0xFF3EFFA8),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _cooldown > 0
+                                ? 'Renvoyer dans ${_cooldown}s'
+                                : 'Renvoyer l\'email',
+                            style: TextStyle(
+                              color: _cooldown > 0
+                                  ? const Color(0xFF3A5070)
+                                  : const Color(0xFF3EFFA8),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // ── Hint ─────────────────────────────────
+                  const Text(
+                    'Vérifiez aussi vos spams',
+                    style: TextStyle(
+                        color: Color(0xFF3A5070), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Connexion Google ──────────────────────────────────────
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    // TODO : Google Sign-In via Firebase
-    await Future.delayed(const Duration(seconds: 2));
+    final result = await _authService.signInWithGoogle();
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // Même redirection que le login email
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/home',
-            (route) => false,
-      );
+    if (result.isSuccess) {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/home', (route) => false);
+    } else {
+      setState(() => _errorMessage = result.errorMessage);
     }
+  }
+
+  // ── Mot de passe oublié ───────────────────────────────────
+  Future<void> _handleForgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() =>
+      _errorMessage = 'Entrez votre email pour réinitialiser');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final result = await _authService.sendPasswordResetEmail(email);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      _buildSnackBar(
+        result.isSuccess
+            ? result.message ?? 'Email envoyé'
+            : result.errorMessage ?? 'Erreur',
+        isError: !result.isSuccess,
+      ),
+    );
   }
 
   @override
@@ -144,7 +374,8 @@ class _LoginScreenState extends State<LoginScreen>
                         scale: _cardScale,
                         child: _buildCard(size),
                       ),
-                      SizedBox(height: size.height * 0.03),
+                      SizedBox(height: size.height * 0.02),
+                      SizedBox(height: size.height * 0.02),
                       _buildSignUpLink(size),
                       SizedBox(height: size.height * 0.04),
                     ],
@@ -204,7 +435,6 @@ class _LoginScreenState extends State<LoginScreen>
           style: TextStyle(
             fontSize: (size.width * 0.038).clamp(13.0, 18.0),
             color: const Color(0xFF6B8CAE),
-            fontWeight: FontWeight.w400,
           ),
         ),
       ],
@@ -219,9 +449,7 @@ class _LoginScreenState extends State<LoginScreen>
         borderRadius: BorderRadius.circular(24),
         color: const Color(0xFF0B1535).withOpacity(0.85),
         border: Border.all(
-          color: const Color(0xFF1A2E52).withOpacity(0.8),
-          width: 1,
-        ),
+            color: const Color(0xFF1A2E52).withOpacity(0.8), width: 1),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF3EFFA8).withOpacity(0.05),
@@ -247,7 +475,8 @@ class _LoginScreenState extends State<LoginScreen>
             keyboardType: TextInputType.emailAddress,
             validator: (v) {
               if (v == null || v.isEmpty) return 'Email requis';
-              if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
+              if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
+                  .hasMatch(v)) {
                 return 'Email invalide';
               }
               return null;
@@ -282,7 +511,7 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () {},
+              onPressed: _handleForgotPassword,
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 4, vertical: 4),
@@ -299,8 +528,39 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
           ),
+
+          // ── Message d'erreur ──────────────────────────────
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFF5C7A).withOpacity(0.1),
+                border: Border.all(
+                    color: const Color(0xFFFF5C7A).withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      color: Color(0xFFFF5C7A), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                          color: Color(0xFFFF5C7A), fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 24),
-          _buildPrimaryButton(label: 'Se connecter', onTap: _handleLogin),
+          _buildPrimaryButton(
+              label: 'Se connecter', onTap: _handleLogin),
           const SizedBox(height: 24),
           _buildDivider(),
           const SizedBox(height: 24),
@@ -310,15 +570,38 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildLabel(String text) => Text(
-    text,
-    style: const TextStyle(
-      color: Color(0xFF8BA8D4),
-      fontSize: 13,
-      fontWeight: FontWeight.w500,
-      letterSpacing: 0.3,
-    ),
+
+  Widget _buildSignUpLink(Size size) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text("Pas encore de compte ? ",
+          style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
+      GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (_, a, __) => const SignUpScreen(),
+              transitionsBuilder: (_, a, __, child) =>
+                  FadeTransition(opacity: a, child: child),
+              transitionDuration: const Duration(milliseconds: 350),
+            ),
+          );
+        },
+        child: const Text("S'inscrire",
+            style: TextStyle(
+                color: Color(0xFF3EFFA8),
+                fontSize: 14,
+                fontWeight: FontWeight.w700)),
+      ),
+    ],
   );
+
+  Widget _buildLabel(String text) => Text(text,
+      style: const TextStyle(
+          color: Color(0xFF8BA8D4),
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.3));
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -424,15 +707,13 @@ class _LoginScreenState extends State<LoginScreen>
               borderRadius: BorderRadius.circular(14),
             ),
           ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF060D1F),
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
+          child: Text(label,
+              style: const TextStyle(
+                color: Color(0xFF060D1F),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              )),
         ),
       ),
     );
@@ -452,7 +733,8 @@ class _LoginScreenState extends State<LoginScreen>
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 14),
         child: Text('ou continuer avec',
-            style: TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+            style:
+            TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
       ),
       Expanded(
         child: Container(
@@ -492,34 +774,25 @@ class _LoginScreenState extends State<LoginScreen>
     ),
   );
 
-  Widget _buildSignUpLink(Size size) => Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      const Text("Pas encore de compte ? ",
-          style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
-      GestureDetector(
-        onTap: () {
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              pageBuilder: (_, a, __) => const SignUpScreen(),
-              transitionsBuilder: (_, a, __, child) =>
-                  FadeTransition(opacity: a, child: child),
-              transitionDuration: const Duration(milliseconds: 350),
-            ),
-          );
-        },
-        child: const Text("S'inscrire",
-            style: TextStyle(
-                color: Color(0xFF3EFFA8),
-                fontSize: 14,
-                fontWeight: FontWeight.w700)),
+  SnackBar _buildSnackBar(String msg, {bool isError = false}) {
+    return SnackBar(
+      content: Text(msg, style: const TextStyle(color: Colors.white)),
+      backgroundColor: const Color(0xFF0D1B38),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+            color: isError
+                ? const Color(0xFFFF5C7A)
+                : const Color(0xFF3EFFA8)),
       ),
-    ],
-  );
+      behavior: SnackBarBehavior.floating,
+    );
+  }
 }
 
+
 // ══════════════════════════════════════════════════════════════
-//  SIGN UP SCREEN  (inchangé)
+//  SIGN UP SCREEN
 // ══════════════════════════════════════════════════════════════
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -538,6 +811,9 @@ class _SignUpScreenState extends State<SignUpScreen>
   bool _obscureConfirm = true;
   bool _isLoading = false;
   bool _acceptTerms = false;
+  String? _errorMessage;
+
+  final _authService = AuthService();
 
   late final AnimationController _bgController;
   late final AnimationController _entranceController;
@@ -618,43 +894,144 @@ class _SignUpScreenState extends State<SignUpScreen>
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Veuillez accepter les conditions d'utilisation",
-              style: TextStyle(color: Colors.white)),
-          backgroundColor: const Color(0xFF0D1B38),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Color(0xFFFF5C7A)),
-          ),
-          behavior: SnackBarBehavior.floating,
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text(
+            "Veuillez accepter les conditions d'utilisation",
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF0D1B38),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFFF5C7A)),
         ),
-      );
+        behavior: SnackBarBehavior.floating,
+      ));
       return;
     }
-    setState(() => _isLoading = true);
-    // TODO: Firebase Auth createUser
-    await Future.delayed(const Duration(seconds: 2));
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await _authService.signUpWithEmail(
+      name: _nameCtrl.text,
+      email: _emailCtrl.text,
+      password: _passCtrl.text,
+    );
+
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // Après inscription réussie → rediriger vers MainLayout
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/home',
-            (route) => false,
-      );
+    if (result.isSuccess || result.isEmailSent) {
+      // 📧 Email de vérification envoyé → affiche le dialog
+      _showEmailSentDialog(result.message ?? 'Email de vérification envoyé');
+    } else {
+      setState(() => _errorMessage = result.errorMessage);
     }
   }
 
+  // ── Dialog : email de vérification envoyé ────────────────
+  void _showEmailSentDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+              color: const Color(0xFF3EFFA8).withOpacity(0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF3EFFA8).withOpacity(0.1),
+                  border: Border.all(
+                      color: const Color(0xFF3EFFA8).withOpacity(0.4)),
+                ),
+                child: const Icon(Icons.email_rounded,
+                    color: Color(0xFF3EFFA8), size: 30),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Email envoyé ! 🎉',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF6B8CAE),
+                  fontSize: 13,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
+                    ),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // ferme dialog
+                      Navigator.of(context).pop(); // retourne au login
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text(
+                      'Aller se connecter',
+                      style: TextStyle(
+                          color: Color(0xFF060D1F),
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await _authService.signInWithGoogle();
+
+    if (!mounted) return;
     setState(() => _isLoading = false);
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/home',
-            (route) => false,
-      );
+
+    if (result.isSuccess) {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/home', (route) => false);
+    } else {
+      setState(() => _errorMessage = result.errorMessage);
     }
   }
 
@@ -681,7 +1058,8 @@ class _SignUpScreenState extends State<SignUpScreen>
               animation: _entranceController,
               builder: (_, child) => FadeTransition(
                 opacity: _fadeIn,
-                child: SlideTransition(position: _slideIn, child: child),
+                child:
+                SlideTransition(position: _slideIn, child: child),
               ),
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -762,7 +1140,8 @@ class _SignUpScreenState extends State<SignUpScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         color: const Color(0xFF0B1535).withOpacity(0.85),
-        border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.8)),
+        border:
+        Border.all(color: const Color(0xFF1A2E52).withOpacity(0.8)),
         boxShadow: [
           BoxShadow(
               color: const Color(0xFF00D4FF).withOpacity(0.05),
@@ -780,14 +1159,13 @@ class _SignUpScreenState extends State<SignUpScreen>
           _buildLabel('Nom complet'),
           const SizedBox(height: 8),
           _buildTextField(
-            controller: _nameCtrl,
-            hint: 'Votre nom',
-            icon: Icons.person_outline_rounded,
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Nom requis';
-              return null;
-            },
-          ),
+              controller: _nameCtrl,
+              hint: 'Votre nom',
+              icon: Icons.person_outline_rounded,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Nom requis';
+                return null;
+              }),
           const SizedBox(height: 18),
           _buildLabel('Adresse email'),
           const SizedBox(height: 8),
@@ -798,9 +1176,8 @@ class _SignUpScreenState extends State<SignUpScreen>
             keyboardType: TextInputType.emailAddress,
             validator: (v) {
               if (v == null || v.isEmpty) return 'Email requis';
-              if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
-                return 'Email invalide';
-              }
+              if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
+                  .hasMatch(v)) return 'Email invalide';
               return null;
             },
           ),
@@ -814,12 +1191,11 @@ class _SignUpScreenState extends State<SignUpScreen>
             obscure: _obscurePass,
             suffixIcon: IconButton(
               icon: Icon(
-                _obscurePass
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: const Color(0xFF4A6080),
-                size: 20,
-              ),
+                  _obscurePass
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: const Color(0xFF4A6080),
+                  size: 20),
               onPressed: () =>
                   setState(() => _obscurePass = !_obscurePass),
             ),
@@ -843,27 +1219,52 @@ class _SignUpScreenState extends State<SignUpScreen>
             obscure: _obscureConfirm,
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureConfirm
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: const Color(0xFF4A6080),
-                size: 20,
-              ),
+                  _obscureConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: const Color(0xFF4A6080),
+                  size: 20),
               onPressed: () =>
                   setState(() => _obscureConfirm = !_obscureConfirm),
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Confirmation requise';
-              if (v != _passCtrl.text) {
+              if (v != _passCtrl.text)
                 return 'Les mots de passe ne correspondent pas';
-              }
               return null;
             },
           ),
           const SizedBox(height: 20),
           _buildTermsCheckbox(),
+          // Erreur Firebase
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFF5C7A).withOpacity(0.1),
+                border: Border.all(
+                    color: const Color(0xFFFF5C7A).withOpacity(0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      color: Color(0xFFFF5C7A), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_errorMessage!,
+                        style: const TextStyle(
+                            color: Color(0xFFFF5C7A), fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
-          _buildPrimaryButton(label: "Créer mon compte", onTap: _handleSignUp),
+          _buildPrimaryButton(
+              label: "Créer mon compte", onTap: _handleSignUp),
           const SizedBox(height: 24),
           _buildDivider(),
           const SizedBox(height: 24),
@@ -888,7 +1289,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                   child: LinearProgressIndicator(
                     value: _passStrength,
                     backgroundColor: const Color(0xFF1A2E52),
-                    valueColor: AlwaysStoppedAnimation(_passStrengthColor),
+                    valueColor:
+                    AlwaysStoppedAnimation(_passStrengthColor),
                   ),
                 ),
               ),
@@ -897,10 +1299,9 @@ class _SignUpScreenState extends State<SignUpScreen>
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
-                color: _passStrengthColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+                  color: _passStrengthColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600),
               child: Text(_passStrengthLabel),
             ),
           ],
@@ -946,7 +1347,9 @@ class _SignUpScreenState extends State<SignUpScreen>
             child: RichText(
               text: TextSpan(
                 style: const TextStyle(
-                    color: Color(0xFF6B8CAE), fontSize: 13, height: 1.5),
+                    color: Color(0xFF6B8CAE),
+                    fontSize: 13,
+                    height: 1.5),
                 children: [
                   const TextSpan(text: "J'accepte les "),
                   WidgetSpan(
@@ -969,27 +1372,25 @@ class _SignUpScreenState extends State<SignUpScreen>
                                     begin: const Offset(1, 0),
                                     end: Offset.zero,
                                   ).animate(CurvedAnimation(
-                                      parent: a, curve: Curves.easeOutCubic)),
+                                      parent: a,
+                                      curve: Curves.easeOutCubic)),
                                   child: child,
                                 ),
                             transitionDuration:
                             const Duration(milliseconds: 350),
                           ),
                         );
-                        if (accepted == true) {
+                        if (accepted == true)
                           setState(() => _acceptTerms = true);
-                        }
                       },
-                      child: const Text(
-                        "Conditions d'utilisation",
-                        style: TextStyle(
-                          color: Color(0xFF3EFFA8),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF3EFFA8),
-                        ),
-                      ),
+                      child: const Text("Conditions d'utilisation",
+                          style: TextStyle(
+                            color: Color(0xFF3EFFA8),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF3EFFA8),
+                          )),
                     ),
                   ),
                   const TextSpan(text: " et la "),
@@ -1013,27 +1414,25 @@ class _SignUpScreenState extends State<SignUpScreen>
                                     begin: const Offset(1, 0),
                                     end: Offset.zero,
                                   ).animate(CurvedAnimation(
-                                      parent: a, curve: Curves.easeOutCubic)),
+                                      parent: a,
+                                      curve: Curves.easeOutCubic)),
                                   child: child,
                                 ),
                             transitionDuration:
                             const Duration(milliseconds: 350),
                           ),
                         );
-                        if (accepted == true) {
+                        if (accepted == true)
                           setState(() => _acceptTerms = true);
-                        }
                       },
-                      child: const Text(
-                        "Politique de confidentialité",
-                        style: TextStyle(
-                          color: Color(0xFF00D4FF),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF00D4FF),
-                        ),
-                      ),
+                      child: const Text("Politique de confidentialité",
+                          style: TextStyle(
+                            color: Color(0xFF00D4FF),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF00D4FF),
+                          )),
                     ),
                   ),
                 ],
@@ -1169,7 +1568,8 @@ class _SignUpScreenState extends State<SignUpScreen>
     const Padding(
       padding: EdgeInsets.symmetric(horizontal: 14),
       child: Text('ou continuer avec',
-          style: TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+          style:
+          TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
     ),
     Expanded(
       child: Container(
@@ -1250,7 +1650,8 @@ class _BgPainter extends CustomPainter {
         r,
         Paint()
           ..shader = RadialGradient(colors: [colors[i], Colors.transparent])
-              .createShader(Rect.fromCircle(center: positions[i], radius: r)),
+              .createShader(
+              Rect.fromCircle(center: positions[i], radius: r)),
       );
     }
   }
@@ -1322,7 +1723,8 @@ class _GoogleIconPainter extends CustomPainter {
           ..strokeCap = StrokeCap.butt,
       );
     }
-    canvas.drawRect(Rect.fromLTWH(w * 0.5, h * 0.42, w * 0.34, h * 0.16),
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.5, h * 0.42, w * 0.34, h * 0.16),
         Paint()..color = const Color(0xFF4285F4));
   }
   @override

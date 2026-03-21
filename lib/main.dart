@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:savy/firebase_options.dart';
 import 'package:savy/views/auth/login_screen.dart';
 import 'package:savy/views/splashScreen/splash_screen.dart' hide LoginScreen;
 import 'package:savy/views/mainLayout/main_layout.dart';
 import 'package:savy/views/legalScreen/legal_screens.dart';
 
-void main() {
+void main() async {
+  // Obligatoire avant tout appel async dans main()
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Initialisation Firebase ──────────────────────────────
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -84,7 +92,8 @@ class SavyApp extends StatelessWidget {
           position: Tween<Offset>(
             begin: Offset(fromRight ? 1.0 : 0.0, fromRight ? 0.0 : 0.06),
             end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+          ).animate(CurvedAnimation(
+              parent: animation, curve: Curves.easeOutCubic)),
           child: FadeTransition(opacity: animation, child: child),
         ),
         transitionDuration: const Duration(milliseconds: 350),

@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "486152463177",
+    "project_id": "savy-d40cc",
+    "storage_bucket": "savy-d40cc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:486152463177:android:7331a42750853acb26f098",
+        "android_client_info": {
+          "package_name": "com.example.savy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "486152463177-t7jksqe962mrpd58s3ue210nr29h8ctq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.savy",
+            "certificate_hash": "0b1d9dc250cc653951476b0f007560da5804edf7"
+          }
+        },
+        {
+          "client_id": "486152463177-ksk5u7er75ua3pno25ai7qknr7l6fm3v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrX8irFrJaotfxTSXjy4JNx71BSTAp_pY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "486152463177-ksk5u7er75ua3pno25ai7qknr7l6fm3v.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "486152463177-he33qbg3i23o94seu0tvobf8lm768l69.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.savy"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
