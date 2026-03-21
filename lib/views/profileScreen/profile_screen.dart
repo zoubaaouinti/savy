@@ -1,12 +1,196 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/auth_service.dart';
+import 'edit_profile_screen.dart';
+import '../legalScreen/legal_screens.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – PROFILE SCREEN
-//  Profil étudiant, paramètres, statistiques personnelles
 // ══════════════════════════════════════════════════════════════
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final _authService = AuthService();
+
+  // Données utilisateur depuis Firebase
+  String _name = '';
+  String _email = '';
+  String _initials = '';
+  Uint8List? _photoBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _loadPhotoFromFirestore();
+  }
+
+  void _loadUserData() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _name = user.displayName ?? 'Utilisateur';
+        _email = user.email ?? '';
+        _initials = _getInitials(_name);
+      });
+    }
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
+  }
+
+  Future<void> _loadPhotoFromFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists && doc.data()?['photoBase64'] != null) {
+        final base64Str = doc.data()!['photoBase64'] as String;
+        final bytes = base64Decode(base64Str);
+        if (mounted) setState(() => _photoBytes = Uint8List.fromList(bytes));
+      }
+    } catch (_) {}
+  }
+
+  // ── Naviguer vers EditProfileScreen ──────────────────────
+  Future<void> _goToEditProfile() async {
+    final result = await Navigator.of(context).push<Map<String, String>>(
+      PageRouteBuilder(
+        pageBuilder: (_, a, __) => EditProfileScreen(
+          currentName: _name,
+          currentEmail: _email,
+        ),
+        transitionsBuilder: (_, a, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
+
+    // Met à jour les données si modifiées
+    if (result != null) {
+      setState(() {
+        _name = result['name'] ?? _name;
+        _email = result['email'] ?? _email;
+        _initials = _getInitials(_name);
+      });
+      // Recharge la photo depuis Firestore
+      await _loadPhotoFromFirestore();
+    }
+  }
+
+  // ── Déconnexion ───────────────────────────────────────────
+  Future<void> _handleLogout() async {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+              color: const Color(0xFFFF5C7A).withOpacity(0.3)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFFF5C7A).withOpacity(0.1),
+                ),
+                child: const Icon(Icons.logout_rounded,
+                    color: Color(0xFFFF5C7A), size: 26),
+              ),
+              const SizedBox(height: 16),
+              const Text('Se déconnecter ?',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              const Text(
+                'Vous devrez vous reconnecter pour accéder à vos données.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  // Annuler
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF1A2E52)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Annuler',
+                          style: TextStyle(
+                              color: Color(0xFF8BA8D4),
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Confirmer
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _authService.signOut();
+                        if (mounted) {
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/login', (_) => false);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF5C7A),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Déconnecter',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +214,8 @@ class ProfileScreen extends StatelessWidget {
                 _SettingItem(
                     icon: Icons.person_outline_rounded,
                     label: 'Modifier le profil',
-                    color: const Color(0xFF3EFFA8)),
+                    color: const Color(0xFF3EFFA8),
+                    onTap: _goToEditProfile),
                 _SettingItem(
                     icon: Icons.notifications_outlined,
                     label: 'Notifications',
@@ -39,7 +224,8 @@ class ProfileScreen extends StatelessWidget {
                 _SettingItem(
                     icon: Icons.lock_outline_rounded,
                     label: 'Sécurité et mot de passe',
-                    color: const Color(0xFF7B61FF)),
+                    color: const Color(0xFF7B61FF),
+                    onTap: _goToEditProfile),
               ]),
               const SizedBox(height: 16),
               _buildSectionLabel('Préférences'),
@@ -90,11 +276,39 @@ class ProfileScreen extends StatelessWidget {
                 _SettingItem(
                     icon: Icons.gavel_rounded,
                     label: 'Conditions d\'utilisation',
-                    color: const Color(0xFF4A6080)),
+                    color: const Color(0xFF4A6080),
+                    onTap: () => Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) => const TermsScreen(),
+                        transitionsBuilder: (_, a, __, child) =>
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(1, 0),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                  parent: a, curve: Curves.easeOutCubic)),
+                              child: child,
+                            ),
+                      ),
+                    )),
                 _SettingItem(
                     icon: Icons.shield_outlined,
                     label: 'Politique de confidentialité',
-                    color: const Color(0xFF4A6080)),
+                    color: const Color(0xFF4A6080),
+                    onTap: () => Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) => const PrivacyScreen(),
+                        transitionsBuilder: (_, a, __, child) =>
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(1, 0),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                  parent: a, curve: Curves.easeOutCubic)),
+                              child: child,
+                            ),
+                      ),
+                    )),
                 _SettingItem(
                     icon: Icons.info_outline_rounded,
                     label: 'Version 1.0.0',
@@ -102,7 +316,7 @@ class ProfileScreen extends StatelessWidget {
                     showArrow: false),
               ]),
               const SizedBox(height: 24),
-              _buildLogoutButton(context),
+              _buildLogoutButton(),
             ],
           ),
         ),
@@ -128,8 +342,7 @@ class ProfileScreen extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFF0F2347), Color(0xFF0B1535)],
         ),
-        border: Border.all(
-            color: const Color(0xFF3EFFA8).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFF3EFFA8).withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF3EFFA8).withOpacity(0.06),
@@ -140,25 +353,34 @@ class ProfileScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Avatar
+          // Avatar avec initiales Firebase
           Stack(
             children: [
               Container(
                 width: 70,
                 height: 70,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
                   ),
                 ),
-                child: const Center(
-                  child: Text(
-                    'ZA',
-                    style: TextStyle(
-                        color: Color(0xFF060D1F),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800),
+                child: ClipOval(
+                  child: _photoBytes != null
+                      ? Image.memory(
+                    _photoBytes!,
+                    fit: BoxFit.cover,
+                    width: 70,
+                    height: 70,
+                  )
+                      : Center(
+                    child: Text(
+                      _initials,
+                      style: const TextStyle(
+                          color: Color(0xFF060D1F),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ),
@@ -187,17 +409,21 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Zeineb Aouinti',
-                  style: TextStyle(
+                // Nom depuis Firebase
+                Text(
+                  _name,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'zeineb.aouinti@student.edu',
-                  style: TextStyle(color: Color(0xFF4A6080), fontSize: 12),
+                // Email depuis Firebase
+                Text(
+                  _email,
+                  style: const TextStyle(
+                      color: Color(0xFF4A6080), fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -210,16 +436,17 @@ class ProfileScreen extends StatelessWidget {
                         color: const Color(0xFF3EFFA8).withOpacity(0.3)),
                   ),
                   child: const Text(
-                    '🎓 Étudiante · 3ème année BI',
-                    style:
-                    TextStyle(color: Color(0xFF3EFFA8), fontSize: 11),
+                    '🎓 Étudiant(e) · Savy',
+                    style: TextStyle(
+                        color: Color(0xFF3EFFA8), fontSize: 11),
                   ),
                 ),
               ],
             ),
           ),
+          // Bouton modifier
           GestureDetector(
-            onTap: () {},
+            onTap: _goToEditProfile,
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -240,19 +467,16 @@ class ProfileScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-            child: _buildStatTile(
-                'Objectifs', '3', Icons.flag_rounded,
-                const Color(0xFF3EFFA8))),
+            child: _buildStatTile('Objectifs', '3',
+                Icons.flag_rounded, const Color(0xFF3EFFA8))),
         const SizedBox(width: 10),
         Expanded(
-            child: _buildStatTile(
-                'Transactions', '47', Icons.receipt_long_rounded,
-                const Color(0xFF00D4FF))),
+            child: _buildStatTile('Transactions', '47',
+                Icons.receipt_long_rounded, const Color(0xFF00D4FF))),
         const SizedBox(width: 10),
         Expanded(
-            child: _buildStatTile(
-                'Score', '74/100', Icons.favorite_rounded,
-                const Color(0xFFFFB340))),
+            child: _buildStatTile('Score', '74/100',
+                Icons.favorite_rounded, const Color(0xFFFFB340))),
       ],
     );
   }
@@ -303,7 +527,8 @@ class ProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: const Color(0xFF0B1535),
-        border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.6)),
+        border:
+        Border.all(color: const Color(0xFF1A2E52).withOpacity(0.6)),
       ),
       child: Column(
         children: List.generate(items.length, (i) {
@@ -311,35 +536,40 @@ class ProfileScreen extends StatelessWidget {
           final isLast = i == items.length - 1;
           return Column(
             children: [
-              Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: item.color.withOpacity(0.12),
+              GestureDetector(
+                onTap: item.onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: item.color.withOpacity(0.12),
+                        ),
+                        child: Icon(item.icon,
+                            color: item.color, size: 17),
                       ),
-                      child: Icon(item.icon, color: item.color, size: 17),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        item.label,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          item.label,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500),
+                        ),
                       ),
-                    ),
-                    if (item.trailing != null) item.trailing!,
-                    if (item.trailing == null && item.showArrow)
-                      const Icon(Icons.arrow_forward_ios_rounded,
-                          color: Color(0xFF3A5070), size: 13),
-                  ],
+                      if (item.trailing != null) item.trailing!,
+                      if (item.trailing == null && item.showArrow)
+                        const Icon(Icons.arrow_forward_ios_rounded,
+                            color: Color(0xFF3A5070), size: 13),
+                    ],
+                  ),
                 ),
               ),
               if (!isLast)
@@ -355,20 +585,16 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLogoutButton(BuildContext context) {
+  Widget _buildLogoutButton() {
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: OutlinedButton(
-        onPressed: () {
-          // TODO: logout Firebase
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/login', (_) => false);
-        },
+        onPressed: _handleLogout,
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Color(0xFFFF5C7A), width: 1),
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -406,11 +632,14 @@ class _SettingItem {
   final Color color;
   final Widget? trailing;
   final bool showArrow;
+  final VoidCallback? onTap;
+
   const _SettingItem({
     required this.icon,
     required this.label,
     required this.color,
     this.trailing,
     this.showArrow = true,
+    this.onTap,
   });
 }
