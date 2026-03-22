@@ -8,10 +8,8 @@ import 'package:savy/views/mainLayout/main_layout.dart';
 import 'package:savy/views/legalScreen/legal_screens.dart';
 
 void main() async {
-  // Obligatoire avant tout appel async dans main()
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── Initialisation Firebase ──────────────────────────────
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -50,12 +48,12 @@ class SavyApp extends StatelessWidget {
       ),
       initialRoute: AppRoutes.splash,
       routes: {
-        AppRoutes.splash:   (_) => const SplashScreen(),
-        AppRoutes.login:    (_) => const LoginScreen(),
-        AppRoutes.signUp:   (_) => const SignUpScreen(),
-        AppRoutes.home:     (_) => const MainLayout(),
-        AppRoutes.terms:    (_) => const TermsScreen(),
-        AppRoutes.privacy:  (_) => const PrivacyScreen(),
+        AppRoutes.splash:  (_) => const SplashScreen(),
+        AppRoutes.login:   (_) => const LoginScreen(),
+        AppRoutes.signUp:  (_) => const SignUpScreen(),
+        AppRoutes.home:    (_) => const MainLayout(),
+        AppRoutes.terms:   (_) => const TermsScreen(),
+        AppRoutes.privacy: (_) => const PrivacyScreen(),
       },
       onGenerateRoute: (settings) {
         switch (settings.name) {

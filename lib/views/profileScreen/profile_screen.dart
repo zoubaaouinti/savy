@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import 'edit_profile_screen.dart';
+import 'help/help_screen.dart';
+import 'security/security_screen.dart';
+import '../../models/profile_models.dart';
 import '../legalScreen/legal_screens.dart';
 
 // ══════════════════════════════════════════════════════════════
@@ -73,12 +76,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Naviguer vers EditProfileScreen ──────────────────────
   Future<void> _goToEditProfile() async {
-    final result = await Navigator.of(context).push<Map<String, String>>(
+    // Construit le UserProfile depuis les données actuelles
+    final user = FirebaseAuth.instance.currentUser;
+    final profile = UserProfile(
+      uid: user?.uid ?? '',
+      name: _name,
+      email: _email,
+    );
+
+    final result = await Navigator.of(context).push<UserProfile>(
       PageRouteBuilder(
-        pageBuilder: (_, a, __) => EditProfileScreen(
-          currentName: _name,
-          currentEmail: _email,
-        ),
+        pageBuilder: (_, a, __) => EditProfileScreen(profile: profile),
         transitionsBuilder: (_, a, __, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
@@ -93,8 +101,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Met à jour les données si modifiées
     if (result != null) {
       setState(() {
-        _name = result['name'] ?? _name;
-        _email = result['email'] ?? _email;
+        _name = result.name;
+        _email = result.email;
         _initials = _getInitials(_name);
       });
       // Recharge la photo depuis Firestore
@@ -225,7 +233,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.lock_outline_rounded,
                     label: 'Sécurité et mot de passe',
                     color: const Color(0xFF7B61FF),
-                    onTap: _goToEditProfile),
+                    onTap: () => Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) => SecurityScreen(),
+                        transitionsBuilder: (_, a, __, child) => SlideTransition(
+                          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+                          child: child,
+                        ),
+                        transitionDuration: const Duration(milliseconds: 350),
+                      ),
+                    )),
               ]),
               const SizedBox(height: 16),
               _buildSectionLabel('Préférences'),
@@ -237,11 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     trailing: const Text('TND',
                         style: TextStyle(
                             color: Color(0xFFFFB340), fontSize: 13))),
-                _SettingItem(
-                    icon: Icons.dark_mode_outlined,
-                    label: 'Thème sombre',
-                    color: const Color(0xFF8BA8D4),
-                    trailing: _toggleWidget(true)),
+
                 _SettingItem(
                     icon: Icons.language_rounded,
                     label: 'Langue',
@@ -272,7 +286,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _SettingItem(
                     icon: Icons.help_outline_rounded,
                     label: 'Aide et FAQ',
-                    color: const Color(0xFF8BA8D4)),
+                    color: const Color(0xFF8BA8D4),
+                    onTap: () => Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) => HelpScreen(),
+                        transitionsBuilder: (_, a, __, child) => SlideTransition(
+                          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+                          child: child,
+                        ),
+                        transitionDuration: const Duration(milliseconds: 350),
+                      ),
+                    )),
                 _SettingItem(
                     icon: Icons.gavel_rounded,
                     label: 'Conditions d\'utilisation',
@@ -624,6 +649,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       inactiveTrackColor: const Color(0xFF1A2E52),
     );
   }
+
 }
 
 class _SettingItem {

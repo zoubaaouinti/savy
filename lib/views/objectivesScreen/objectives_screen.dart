@@ -68,6 +68,7 @@ class _ObjectivesScreenState extends State<ObjectivesScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_objectives',
         onPressed: () => _showAddObjectiveSheet(context),
         backgroundColor: const Color(0xFF3EFFA8),
         icon: const Icon(Icons.add, color: Color(0xFF060D1F)),
