@@ -185,6 +185,32 @@ class ContactOption {
   });
 }
 
+class UserReview {
+  final int rating;
+  final String message;
+  final String userName;
+  final String userEmail;
+  final DateTime timestamp;
+
+  UserReview({
+    required this.rating,
+    required this.message,
+    required this.userName,
+    required this.userEmail,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'rating': rating,
+      'message': message,
+      'userName': userName,
+      'userEmail': userEmail,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+}
+
 final List<ContactOption> contactOptions = [
   ContactOption(
     title: 'Email support',

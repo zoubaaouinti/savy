@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../models/faq_models.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – EMAILJS SERVICE
 //  lib/services/emailjs_service.dart
 //
-//  ⚠️  Remplace les valeurs ci-dessous par les tiennes :
+// ⚠️  Remplace les valeurs ci-dessous par les tiennes :
 //      SERVICE_ID  → EmailJS > Email Services > ton service
 //      TEMPLATE_ID → EmailJS > Email Templates > ton template
 //      PUBLIC_KEY  → EmailJS > Account > General > Public Key
@@ -60,6 +61,63 @@ class EmailJSService {
     } catch (e) {
       return EmailResult.error('Erreur de connexion: ${e.toString()}');
     }
+  }
+
+  /// Envoie un avis utilisateur via EmailJS
+  /// [review] → objet UserReview contenant la note et le message
+  static Future<EmailResult> sendReviewEmail(UserReview review) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'origin': 'http://localhost',
+        },
+        body: jsonEncode({
+          'service_id':  _serviceId,
+          'template_id': _templateId,
+          'user_id':     _publicKey,
+          'template_params': {
+            'user_name':  review.userName,
+            'user_email': review.userEmail,
+            'subject':    'Nouvel avis utilisateur - Note: ${review.rating}/5',
+            'message':    _formatReviewMessage(review),
+            'to_email':   'zouba.aouinti@gmail.com',
+          },
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return EmailResult.success();
+      } else {
+        return EmailResult.error(
+            'Erreur serveur (${response.statusCode}): ${response.body}');
+      }
+    } catch (e) {
+      return EmailResult.error('Erreur de connexion: ${e.toString()}');
+    }
+  }
+
+  /// Formate le message de l'avis pour l'email
+  static String _formatReviewMessage(UserReview review) {
+    final stars = '⭐' * review.rating;
+    final message = review.message.isNotEmpty ? review.message : 'Aucun commentaire';
+    
+    return '''
+Nouvel avis reçu sur Savy !
+
+$stars (${review.rating}/5)
+
+Utilisateur: ${review.userName}
+Email: ${review.userEmail}
+Date: ${review.timestamp.toString().split('.')[0]}
+
+Commentaire:
+$message
+
+---
+Cet avis a été envoyé depuis l'application mobile Savy
+    ''';
   }
 }
 

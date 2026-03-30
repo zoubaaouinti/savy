@@ -9,6 +9,7 @@ import 'help/help_screen.dart';
 import 'security/security_screen.dart';
 import '../../models/profile_models.dart';
 import '../legalScreen/legal_screens.dart';
+import 'backup/backup_screen.dart'; // ← AJOUT IMPORT BACKUP
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – PROFILE SCREEN
@@ -76,7 +77,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Naviguer vers EditProfileScreen ──────────────────────
   Future<void> _goToEditProfile() async {
-    // Construit le UserProfile depuis les données actuelles
     final user = FirebaseAuth.instance.currentUser;
     final profile = UserProfile(
       uid: user?.uid ?? '',
@@ -98,16 +98,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    // Met à jour les données si modifiées
     if (result != null) {
       setState(() {
         _name = result.name;
         _email = result.email;
         _initials = _getInitials(_name);
       });
-      // Recharge la photo depuis Firestore
       await _loadPhotoFromFirestore();
     }
+  }
+
+  // ── Naviguer vers BackupScreen ────────────────────────────
+  void _goToBackup() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, a, __) => const BackupScreen(),
+        transitionsBuilder: (_, a, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
   }
 
   // ── Déconnexion ───────────────────────────────────────────
@@ -146,12 +161,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Text(
                 'Vous devrez vous reconnecter pour accéder à vos données.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 13, height: 1.5),
+                style: TextStyle(
+                    color: Color(0xFF6B8CAE), fontSize: 13, height: 1.5),
               ),
               const SizedBox(height: 24),
               Row(
                 children: [
-                  // Annuler
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -168,7 +183,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // Confirmer
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
@@ -217,6 +231,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               _buildStatsRow(),
               const SizedBox(height: 20),
+
+              // ── Section Compte ─────────────────────────
               _buildSectionLabel('Compte'),
               _buildSettingsGroup([
                 _SettingItem(
@@ -237,8 +253,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       PageRouteBuilder(
                         pageBuilder: (_, a, __) => SecurityScreen(),
                         transitionsBuilder: (_, a, __, child) => SlideTransition(
-                          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+                          position: Tween<Offset>(
+                              begin: const Offset(1, 0), end: Offset.zero)
+                              .animate(CurvedAnimation(
+                              parent: a, curve: Curves.easeOutCubic)),
                           child: child,
                         ),
                         transitionDuration: const Duration(milliseconds: 350),
@@ -246,6 +264,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     )),
               ]),
               const SizedBox(height: 16),
+
+              // ── Section Préférences ────────────────────
               _buildSectionLabel('Préférences'),
               _buildSettingsGroup([
                 _SettingItem(
@@ -255,7 +275,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     trailing: const Text('TND',
                         style: TextStyle(
                             color: Color(0xFFFFB340), fontSize: 13))),
-
                 _SettingItem(
                     icon: Icons.language_rounded,
                     label: 'Langue',
@@ -265,22 +284,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: Color(0xFF00D4FF), fontSize: 13))),
               ]),
               const SizedBox(height: 16),
+
+              // ── Section Données — bouton fusionné ──────
               _buildSectionLabel('Données'),
               _buildSettingsGroup([
                 _SettingItem(
-                    icon: Icons.cloud_upload_outlined,
-                    label: 'Sauvegarder les données',
-                    color: const Color(0xFF3EFFA8)),
+                  icon: Icons.cloud_upload_outlined,
+                  label: 'Sauvegarder & Exporter mes données',
+                  color: const Color(0xFF3EFFA8),
+                  onTap: _goToBackup, // ← navigation vers BackupScreen
+                ),
                 _SettingItem(
-                    icon: Icons.download_rounded,
-                    label: 'Exporter en CSV',
-                    color: const Color(0xFF00D4FF)),
-                _SettingItem(
-                    icon: Icons.delete_outline_rounded,
-                    label: 'Supprimer les données',
-                    color: const Color(0xFFFF5C7A)),
+                  icon: Icons.delete_outline_rounded,
+                  label: 'Supprimer les données',
+                  color: const Color(0xFFFF5C7A),
+                ),
               ]),
               const SizedBox(height: 16),
+
+              // ── Section Support ────────────────────────
               _buildSectionLabel('Support'),
               _buildSettingsGroup([
                 _SettingItem(
@@ -291,8 +313,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       PageRouteBuilder(
                         pageBuilder: (_, a, __) => HelpScreen(),
                         transitionsBuilder: (_, a, __, child) => SlideTransition(
-                          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+                          position: Tween<Offset>(
+                              begin: const Offset(1, 0), end: Offset.zero)
+                              .animate(CurvedAnimation(
+                              parent: a, curve: Curves.easeOutCubic)),
                           child: child,
                         ),
                         transitionDuration: const Duration(milliseconds: 350),
@@ -305,15 +329,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
                         pageBuilder: (_, a, __) => const TermsScreen(),
-                        transitionsBuilder: (_, a, __, child) =>
-                            SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(1, 0),
-                                end: Offset.zero,
-                              ).animate(CurvedAnimation(
-                                  parent: a, curve: Curves.easeOutCubic)),
-                              child: child,
-                            ),
+                        transitionsBuilder: (_, a, __, child) => SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(1, 0),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(
+                              parent: a, curve: Curves.easeOutCubic)),
+                          child: child,
+                        ),
                       ),
                     )),
                 _SettingItem(
@@ -323,15 +346,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
                         pageBuilder: (_, a, __) => const PrivacyScreen(),
-                        transitionsBuilder: (_, a, __, child) =>
-                            SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(1, 0),
-                                end: Offset.zero,
-                              ).animate(CurvedAnimation(
-                                  parent: a, curve: Curves.easeOutCubic)),
-                              child: child,
-                            ),
+                        transitionsBuilder: (_, a, __, child) => SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(1, 0),
+                            end: Offset.zero,
+                          ).animate(CurvedAnimation(
+                              parent: a, curve: Curves.easeOutCubic)),
+                          child: child,
+                        ),
                       ),
                     )),
                 _SettingItem(
@@ -348,6 +370,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ── Widgets ───────────────────────────────────────────────
 
   Widget _buildHeader() {
     return const Text(
@@ -378,7 +402,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          // Avatar avec initiales Firebase
           Stack(
             children: [
               Container(
@@ -434,7 +457,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Nom depuis Firebase
                 Text(
                   _name,
                   style: const TextStyle(
@@ -443,7 +465,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 2),
-                // Email depuis Firebase
                 Text(
                   _email,
                   style: const TextStyle(
@@ -452,8 +473,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 3),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     color: const Color(0xFF3EFFA8).withOpacity(0.1),
@@ -462,14 +483,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: const Text(
                     '🎓 Étudiant(e) · Savy',
-                    style: TextStyle(
-                        color: Color(0xFF3EFFA8), fontSize: 11),
+                    style: TextStyle(color: Color(0xFF3EFFA8), fontSize: 11),
                   ),
                 ),
               ],
             ),
           ),
-          // Bouton modifier
           GestureDetector(
             onTap: _goToEditProfile,
             child: Container(
@@ -649,9 +668,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       inactiveTrackColor: const Color(0xFF1A2E52),
     );
   }
-
 }
 
+// ── Modèle item settings ──────────────────────────────────────
 class _SettingItem {
   final IconData icon;
   final String label;
