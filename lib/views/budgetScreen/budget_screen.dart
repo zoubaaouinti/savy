@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/budget_models.dart';
+import '../../models/export_models.dart';
+import '../../services/transaction_service.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -10,22 +12,14 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  int _selectedPeriod = 1;
+  int _selectedPeriod = 1; // 0: Semaine, 1: Mois, 2: Année
 
-  final List<BudgetCategory> _categories = [
-    BudgetCategory(name: 'Alimentation', spent: 145, budget: 200, iconName: 'restaurant', colorValue: 0xFFFFB340),
-    BudgetCategory(name: 'Transport', spent: 48, budget: 60, iconName: 'directions_bus', colorValue: 0xFF00D4FF),
-    BudgetCategory(name: 'Loisirs', spent: 80, budget: 70, iconName: 'movie', colorValue: 0xFFFF5C7A),
-    BudgetCategory(name: 'Académique', spent: 60, budget: 100, iconName: 'menu_book', colorValue: 0xFF7B61FF),
-    BudgetCategory(name: 'Santé', spent: 30, budget: 50, iconName: 'favorite', colorValue: 0xFF3EFFA8),
-    BudgetCategory(name: 'Autres', spent: 20, budget: 40, iconName: 'category', colorValue: 0xFF8BA8D4),
-  ];
+  List<BudgetCategory> _categories = [];
+  List<RevenueSource> _revenues = [];
+  List<TransactionSnapshot> _transactions = [];
+  bool _isLoading = true;
 
-  final List<RevenueSource> _revenues = [
-    RevenueSource(id: '1', source: 'Bourse universitaire', amount: 600, type: 'Mensuel', iconName: 'school', colorValue: 0xFF3EFFA8),
-    RevenueSource(id: '2', source: 'Job étudiant', amount: 800, type: 'Mensuel', iconName: 'work', colorValue: 0xFF00D4FF),
-    RevenueSource(id: '3', source: 'Aide familiale', amount: 400, type: 'Irrégulier', iconName: 'family_restroom', colorValue: 0xFFFFB340),
-  ];
+  final TransactionService _transactionService = TransactionService();
 
   IconData _iconFromName(String name) {
     const map = {
@@ -45,13 +39,117 @@ class _BudgetScreenState extends State<BudgetScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // 3 tabs au lieu de 2
+    _loadData();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    // Initialiser les budgets par défaut si nécessaire
+    await _transactionService.initializeDefaultBudgets();
+
+    // Charger les budgets
+    final budgets = await _transactionService.getBudgets();
+
+    // Charger les transactions en temps réel
+    _transactionService.getTransactionsStream().listen((transactions) {
+      if (mounted) {
+        setState(() {
+          _transactions = transactions;
+        });
+      }
+    });
+
+    // Charger les revenus - CORRECTION ICI
+    _transactionService.getRevenues().listen((revenues) {
+      if (mounted) {
+        // Convertir RevenueSnapshot en RevenueSource
+        final revenueSources = revenues.map((snapshot) => RevenueSource(
+          id: snapshot.id,
+          source: snapshot.source,
+          amount: snapshot.amount,
+          type: snapshot.type,
+          iconName: _getIconNameForSource(snapshot.source),
+          colorValue: _getColorForSource(snapshot.source),
+        )).toList();
+
+        setState(() {
+          _revenues = revenueSources;
+        });
+      }
+    });
+
+    if (mounted) {
+      setState(() {
+        _categories = budgets;
+        _isLoading = false;
+      });
+    }
+  }
+
+// Ajoutez ces méthodes helper
+  String _getIconNameForSource(String source) {
+    if (source.contains('Bourse') || source.contains('bourse')) return 'school';
+    if (source.contains('Job') || source.contains('travail')) return 'work';
+    if (source.contains('Aide') || source.contains('familiale')) return 'family_restroom';
+    return 'attach_money';
+  }
+
+  int _getColorForSource(String source) {
+    if (source.contains('Bourse') || source.contains('bourse')) return 0xFF3EFFA8;
+    if (source.contains('Job') || source.contains('travail')) return 0xFF00D4FF;
+    if (source.contains('Aide') || source.contains('familiale')) return 0xFFFFB340;
+    return 0xFF8BA8D4;
+  }
+
+  // Filtrer les transactions par période
+  List<TransactionSnapshot> get _filteredTransactions {
+    final now = DateTime.now();
+
+    return _transactions.where((transaction) {
+      final transactionDate = transaction.date;
+
+      switch (_selectedPeriod) {
+        case 0: // Semaine
+          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+          final endOfWeek = startOfWeek.add(const Duration(days: 7));
+          return transactionDate.isAfter(startOfWeek) &&
+              transactionDate.isBefore(endOfWeek);
+
+        case 1: // Mois
+          return transactionDate.year == now.year &&
+              transactionDate.month == now.month;
+
+        case 2: // Année
+          return transactionDate.year == now.year;
+
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  // Statistiques des transactions filtrées
+  double get _filteredTotalExpenses => _filteredTransactions
+      .where((t) => !t.isIncome)
+      .fold(0, (sum, t) => sum + t.amount);
+
+  double get _filteredTotalIncome => _filteredTransactions
+      .where((t) => t.isIncome)
+      .fold(0, (sum, t) => sum + t.amount);
+
+  double get _filteredBalance => _filteredTotalIncome - _filteredTotalExpenses;
+
+  // Rafraîchir les données
+  Future<void> _refreshData() async {
+    await _loadData();
   }
 
   BudgetSummary get _summary => BudgetSummary(
@@ -66,20 +164,34 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            _buildPeriodSelector(),
-            _buildBudgetSummary(),
-            _buildTabBar(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [_buildCategoriesTab(), _buildRevenueTab()],
+        child: RefreshIndicator(
+          onRefresh: _refreshData,
+          color: const Color(0xFF3EFFA8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              _buildPeriodSelector(),
+              _buildBudgetSummary(),
+              _buildTabBar(),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8)),
+                  ),
+                )
+                    : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCategoriesTab(),
+                    _buildTransactionsTab(),
+                    _buildRevenueTab(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -87,7 +199,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         onPressed: () => _showAddSheet(context),
         backgroundColor: const Color(0xFF3EFFA8),
         icon: const Icon(Icons.add, color: Color(0xFF060D1F)),
-        label: const Text('Nouvelle dépense',
+        label: const Text('Nouvelle transaction',
             style: TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700)),
       ),
     );
@@ -217,12 +329,30 @@ class _BudgetScreenState extends State<BudgetScreen>
         labelColor: const Color(0xFF060D1F),
         unselectedLabelColor: const Color(0xFF4A6080),
         labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-        tabs: const [Tab(text: 'Catégories'), Tab(text: 'Revenus')],
+        tabs: const [
+          Tab(text: 'Catégories'),
+          Tab(text: 'Transactions'),
+          Tab(text: 'Revenus')
+        ],
       ),
     );
   }
 
   Widget _buildCategoriesTab() {
+    if (_categories.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.category_outlined, color: Color(0xFF4A6080), size: 48),
+            SizedBox(height: 12),
+            Text('Aucune catégorie de budget',
+                style: TextStyle(color: Color(0xFF4A6080))),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       physics: const BouncingScrollPhysics(),
@@ -290,7 +420,196 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
+  // Nouvel onglet : Transactions
+  Widget _buildTransactionsTab() {
+    final filteredTransactions = _filteredTransactions;
+
+    if (filteredTransactions.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, color: Color(0xFF4A6080), size: 48),
+            SizedBox(height: 12),
+            Text('Aucune transaction pour cette période',
+                style: TextStyle(color: Color(0xFF4A6080))),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Statistiques de la période
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F2347), Color(0xFF0B1535)],
+            ),
+            border: Border.all(color: const Color(0xFF3EFFA8).withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    const Text('Revenus', style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Text('+ ${_filteredTotalIncome.toStringAsFixed(0)} TND',
+                        style: const TextStyle(color: Color(0xFF3EFFA8), fontSize: 14, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 30, color: const Color(0xFF1A2E52)),
+              Expanded(
+                child: Column(
+                  children: [
+                    const Text('Dépenses', style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Text('- ${_filteredTotalExpenses.toStringAsFixed(0)} TND',
+                        style: const TextStyle(color: Color(0xFFFF5C7A), fontSize: 14, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 30, color: const Color(0xFF1A2E52)),
+              Expanded(
+                child: Column(
+                  children: [
+                    const Text('Solde', style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Text('${_filteredBalance.toStringAsFixed(0)} TND',
+                        style: TextStyle(
+                          color: _filteredBalance >= 0 ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        )),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Liste des transactions
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+            physics: const BouncingScrollPhysics(),
+            itemCount: filteredTransactions.length,
+            itemBuilder: (_, i) => _buildTransactionCard(filteredTransactions[i]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionCard(TransactionSnapshot transaction) {
+    final isIncome = transaction.isIncome;
+    final amountColor = isIncome ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A);
+    final prefix = isIncome ? '+' : '-';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF0B1535),
+        border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: amountColor.withOpacity(0.12),
+            ),
+            child: Icon(
+              isIncome ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+              color: amountColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transaction.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFF1A2E52),
+                      ),
+                      child: Text(
+                        transaction.category,
+                        style: const TextStyle(color: Color(0xFF8BA8D4), fontSize: 10),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      transaction.formattedDate,
+                      style: const TextStyle(color: Color(0xFF4A6080), fontSize: 10),
+                    ),
+                  ],
+                ),
+                if (transaction.note != null && transaction.note!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    transaction.note!,
+                    style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Text(
+            '$prefix ${transaction.amount.toStringAsFixed(0)} TND',
+            style: TextStyle(
+              color: amountColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRevenueTab() {
+    if (_revenues.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.trending_up_outlined, color: Color(0xFF4A6080), size: 48),
+            SizedBox(height: 12),
+            Text('Aucun revenu enregistré',
+                style: TextStyle(color: Color(0xFF4A6080))),
+          ],
+        ),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
       physics: const BouncingScrollPhysics(),
@@ -364,17 +683,26 @@ class _BudgetScreenState extends State<BudgetScreen>
       backgroundColor: const Color(0xFF0B1535),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       isScrollControlled: true,
-      builder: (_) => _AddExpenseSheet(categories: _categories),
+      builder: (_) => _AddExpenseSheet(
+        categories: _categories,
+        onTransactionAdded: _refreshData,
+      ),
     );
   }
 }
 
 // ══════════════════════════════════════════════════════════════
-//  ADD EXPENSE SHEET
+//  ADD EXPENSE SHEET WITH FIREBASE
 // ══════════════════════════════════════════════════════════════
 class _AddExpenseSheet extends StatefulWidget {
   final List<BudgetCategory> categories;
-  const _AddExpenseSheet({required this.categories});
+  final VoidCallback onTransactionAdded;
+
+  const _AddExpenseSheet({
+    required this.categories,
+    required this.onTransactionAdded,
+  });
+
   @override
   State<_AddExpenseSheet> createState() => _AddExpenseSheetState();
 }
@@ -384,9 +712,101 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   String? _selectedCategory;
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  final _sourceCtrl = TextEditingController();
+  final _typeCtrl = TextEditingController();
+  bool _isLoading = false;
+
+  final TransactionService _transactionService = TransactionService();
 
   @override
-  void dispose() { _amountCtrl.dispose(); _noteCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _amountCtrl.dispose();
+    _noteCtrl.dispose();
+    _sourceCtrl.dispose();
+    _typeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveTransaction() async {
+    final amount = double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.'));
+
+    if (amount == null || amount <= 0) {
+      _showError('Montant invalide');
+      return;
+    }
+
+    if (_typeIndex == 0 && _selectedCategory == null) {
+      _showError('Veuillez sélectionner une catégorie');
+      return;
+    }
+
+    if (_typeIndex == 1 && _sourceCtrl.text.trim().isEmpty) {
+      _showError('Veuillez indiquer la source du revenu');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_typeIndex == 0) {
+        // Ajouter une dépense
+        await _transactionService.addExpense(
+          category: _selectedCategory!,
+          amount: amount,
+          note: _noteCtrl.text.trim(),
+          date: DateTime.now(),
+        );
+
+        _showSuccess('Dépense ajoutée avec succès');
+
+      } else {
+        // Ajouter un revenu
+        await _transactionService.addRevenue(
+          source: _sourceCtrl.text.trim(),
+          amount: amount,
+          type: _typeCtrl.text.trim().isNotEmpty ? _typeCtrl.text.trim() : 'Mensuel',
+          date: DateTime.now(),
+        );
+
+        _showSuccess('Revenu ajouté avec succès');
+      }
+
+      // Rafraîchir les données
+      widget.onTransactionAdded();
+
+      // Fermer le bottom sheet
+      Navigator.pop(context);
+
+    } catch (e) {
+      _showError(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFFF5C7A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF3EFFA8),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -408,31 +828,69 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               _typeBtn(1, 'Revenu', const Color(0xFF3EFFA8)),
             ]),
             const SizedBox(height: 16),
+
             if (_typeIndex == 0) ...[
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 dropdownColor: const Color(0xFF0D1B38),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 decoration: _fieldDeco('Catégorie', Icons.category_rounded),
-                items: widget.categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                items: widget.categories.map((c) => DropdownMenuItem(
+                    value: c.name,
+                    child: Text(c.name)
+                )).toList(),
                 onChanged: (v) => setState(() => _selectedCategory = v),
               ),
               const SizedBox(height: 12),
             ],
-            TextField(controller: _amountCtrl, keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 18),
-                decoration: _fieldDeco('0.00 TND', Icons.attach_money_rounded)),
+
+            if (_typeIndex == 1) ...[
+              TextField(
+                controller: _sourceCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _fieldDeco('Source (ex: Salaire, Bourse)', Icons.business_rounded),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _typeCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _fieldDeco('Fréquence (Mensuel, Hebdomadaire...)', Icons.repeat_rounded),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            TextField(
+              controller: _amountCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              decoration: _fieldDeco('0.00 TND', Icons.attach_money_rounded),
+            ),
             const SizedBox(height: 12),
-            TextField(controller: _noteCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: _fieldDeco('Description (optionnel)', Icons.edit_note_rounded)),
+
+            TextField(
+              controller: _noteCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: _fieldDeco('Description (optionnel)', Icons.edit_note_rounded),
+            ),
             const SizedBox(height: 20),
+
             SizedBox(
-              width: double.infinity, height: 50,
+              width: double.infinity,
+              height: 50,
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3EFFA8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                child: const Text('Enregistrer', style: TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700, fontSize: 15)),
+                onPressed: _isLoading ? null : _saveTransaction,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3EFFA8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF060D1F))
+                )
+                    : const Text('Enregistrer',
+                    style: TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700, fontSize: 15)
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -443,8 +901,10 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   }
 
   InputDecoration _fieldDeco(String hint, IconData icon) => InputDecoration(
-    hintText: hint, hintStyle: const TextStyle(color: Color(0xFF3A5068)),
-    filled: true, fillColor: const Color(0xFF0D1B38),
+    hintText: hint,
+    hintStyle: const TextStyle(color: Color(0xFF3A5068)),
+    filled: true,
+    fillColor: const Color(0xFF0D1B38),
     prefixIcon: Icon(icon, color: const Color(0xFF3EFFA8), size: 20),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF1A2E52))),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF1A2E52))),
