@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -86,9 +88,19 @@ class _BackupScreenState extends State<BackupScreen>
     try {
       final data = _getUserData();
       final result = await ExportService.exportPdf(data, _selectedSections.toList());
+
+      // 🔍 DEBUG : Affiche toutes les propriétés de result
+      print('Result: $result');
+      print('isSuccess: ${result.isSuccess}');
+      print('filePath: ${result.filePath}');
+      print('errorMessage: ${result.errorMessage}');
+      print('Runtime type: ${result.runtimeType}');
+
       if (!mounted) return;
       setState(() => _isLoading = false);
+
       if (result.isSuccess && result.filePath != null) {
+        print('✅ Fichier généré: ${result.filePath}');
         await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => _PdfPreviewScreen(
             filePath: result.filePath!,
@@ -100,6 +112,7 @@ class _BackupScreenState extends State<BackupScreen>
         setState(() => _errorMessage = result.errorMessage ?? 'Erreur inconnue');
       }
     } catch (e) {
+      print('❌ Erreur: $e');
       setState(() { _isLoading = false; _errorMessage = e.toString(); });
     }
   }
@@ -115,8 +128,32 @@ class _BackupScreenState extends State<BackupScreen>
       final result = await ExportService.exportCsv(data, _selectedSections.toList());
       if (!mounted) return;
       setState(() => _isLoading = false);
+
       if (result.isSuccess && result.filePath != null) {
-        await ExportService.shareFile(result.filePath!, 'savy_export.csv');
+        // Partager le fichier - fonctionne sans permissions
+        await Share.shareXFiles(
+          [XFile(result.filePath!)],
+          subject: 'Savy - Export CSV',
+          text: 'Voici mon export CSV depuis Savy',
+        );
+
+        // Message de confirmation
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Color(0xFF3EFFA8), size: 20),
+                  SizedBox(width: 12),
+                  Text('Fichier CSV généré avec succès'),
+                ],
+              ),
+              backgroundColor: Color(0xFF0B1535),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       } else {
         setState(() => _errorMessage = result.errorMessage ?? 'Erreur inconnue');
       }

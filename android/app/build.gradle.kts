@@ -1,15 +1,14 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    // Firebase Google Services
     id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.example.savy"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // ← Change de 34 à 36
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -23,8 +22,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.savy"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion  // ← Garde 23 ou 21 pour compatibilité
+        targetSdk = 36  // ← Change de 34 à 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

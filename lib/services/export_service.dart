@@ -181,14 +181,13 @@ class ExportService {
   }
 
   // ── PDF Section Title ─────────────────────────────────────
-  static pw.Widget _buildPdfSectionTitle(
-      String title, PdfColor color) {
+  static pw.Widget _buildPdfSectionTitle(String title, PdfColor color) {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: pw.BoxDecoration(
         color: color.shade(0.9),
         borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border(left: pw.BorderSide(color: color, width: 3)),
+        border: pw.Border.all(color: color, width: 1),  // ← Bordure complète
       ),
       child: pw.Text(title,
           style: pw.TextStyle(
@@ -197,7 +196,6 @@ class ExportService {
               color: _dark)),
     );
   }
-
   // ── PDF Budget Table ──────────────────────────────────────
   static pw.Widget _buildPdfBudgetTable(
       List<BudgetCategorySnapshot> cats) {

@@ -26,6 +26,17 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- Ajout des permissions pour le partage de fichiers -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- Ajout des permissions pour accéder aux photos (optionnel) -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Cette application souhaite sauvegarder des fichiers dans votre bibliothèque</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
