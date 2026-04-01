@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../services/transaction_service.dart';
+import '../../models/export_models.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – TRANSACTIONS SCREEN
-//  Historique complet des dépenses et revenus
+//  Historique complet des dépenses et revenus (avec données réelles)
 // ══════════════════════════════════════════════════════════════
 
 class TransactionsScreen extends StatefulWidget {
@@ -17,90 +19,41 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  final List<_Transaction> _allTransactions = [
-    _Transaction(
-        label: 'Bourse universitaire',
-        category: 'Revenu',
-        amount: 600.0,
-        date: '01 Mar 2025',
-        icon: Icons.school_rounded,
-        color: const Color(0xFF3EFFA8),
-        isIncome: true),
-    _Transaction(
-        label: 'Courses alimentaires',
-        category: 'Alimentation',
-        amount: -45.0,
-        date: '02 Mar 2025',
-        icon: Icons.shopping_cart_outlined,
-        color: const Color(0xFFFFB340),
-        isIncome: false),
-    _Transaction(
-        label: 'Transport (métro)',
-        category: 'Transport',
-        amount: -12.0,
-        date: '03 Mar 2025',
-        icon: Icons.directions_bus_outlined,
-        color: const Color(0xFF00D4FF),
-        isIncome: false),
-    _Transaction(
-        label: 'Job étudiant',
-        category: 'Revenu',
-        amount: 800.0,
-        date: '05 Mar 2025',
-        icon: Icons.work_rounded,
-        color: const Color(0xFF3EFFA8),
-        isIncome: true),
-    _Transaction(
-        label: 'Cinéma',
-        category: 'Loisirs',
-        amount: -18.0,
-        date: '07 Mar 2025',
-        icon: Icons.movie_rounded,
-        color: const Color(0xFFFF5C7A),
-        isIncome: false),
-    _Transaction(
-        label: 'Manuel de cours',
-        category: 'Académique',
-        amount: -35.0,
-        date: '08 Mar 2025',
-        icon: Icons.menu_book_rounded,
-        color: const Color(0xFF7B61FF),
-        isIncome: false),
-    _Transaction(
-        label: 'Aide familiale',
-        category: 'Revenu',
-        amount: 400.0,
-        date: '10 Mar 2025',
-        icon: Icons.family_restroom_rounded,
-        color: const Color(0xFF3EFFA8),
-        isIncome: true),
-    _Transaction(
-        label: 'Restaurant',
-        category: 'Alimentation',
-        amount: -28.0,
-        date: '12 Mar 2025',
-        icon: Icons.restaurant_rounded,
-        color: const Color(0xFFFFB340),
-        isIncome: false),
-    _Transaction(
-        label: 'Pharmacie',
-        category: 'Santé',
-        amount: -22.0,
-        date: '14 Mar 2025',
-        icon: Icons.local_pharmacy_rounded,
-        color: const Color(0xFF3EFFA8),
-        isIncome: false),
-    _Transaction(
-        label: 'Abonnement Spotify',
-        category: 'Loisirs',
-        amount: -5.99,
-        date: '15 Mar 2025',
-        icon: Icons.music_note_rounded,
-        color: const Color(0xFFFF5C7A),
-        isIncome: false),
-  ];
+  List<TransactionSnapshot> _allTransactions = [];
+  bool _isLoading = true;
 
-  List<_Transaction> get _filtered {
+  final TransactionService _transactionService = TransactionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadTransactions() async {
+    setState(() => _isLoading = true);
+    try {
+      _transactionService.getTransactionsStream().listen((transactions) {
+        if (mounted) {
+          setState(() {
+            _allTransactions = transactions;
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (e) {
+      print('❌ Erreur chargement transactions: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  List<TransactionSnapshot> get _filtered {
     return _allTransactions.where((tx) {
       final matchFilter = _filterIndex == 0 ||
           (_filterIndex == 1 && !tx.isIncome) ||
@@ -112,10 +65,101 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }).toList();
   }
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
+  double get _totalIncome => _filtered
+      .where((t) => t.isIncome)
+      .fold<double>(0, (s, t) => s + t.amount);
+
+  double get _totalExpense => _filtered
+      .where((t) => !t.isIncome)
+      .fold<double>(0, (s, t) => s + t.amount);
+
+  IconData _getIconForCategory(String category, bool isIncome) {
+    if (isIncome) {
+      if (category.contains('Revenu') || category.contains('Bourse'))
+        return Icons.school_rounded;
+      if (category.contains('Job') || category.contains('travail'))
+        return Icons.work_rounded;
+      if (category.contains('Aide') || category.contains('familiale'))
+        return Icons.family_restroom_rounded;
+      return Icons.trending_up_rounded;
+    }
+
+    switch (category.toLowerCase()) {
+      case 'alimentation':
+        return Icons.restaurant_rounded;
+      case 'transport':
+        return Icons.directions_bus_rounded;
+      case 'loisirs':
+        return Icons.movie_rounded;
+      case 'académique':
+        return Icons.menu_book_rounded;
+      case 'santé':
+        return Icons.local_pharmacy_rounded;
+      default:
+        return Icons.shopping_cart_outlined;
+    }
+  }
+
+  Color _getColorForCategory(String category, bool isIncome) {
+    if (isIncome) return const Color(0xFF3EFFA8);
+
+    switch (category.toLowerCase()) {
+      case 'alimentation':
+        return const Color(0xFFFFB340);
+      case 'transport':
+        return const Color(0xFF00D4FF);
+      case 'loisirs':
+        return const Color(0xFFFF5C7A);
+      case 'académique':
+        return const Color(0xFF7B61FF);
+      case 'santé':
+        return const Color(0xFF3EFFA8);
+      default:
+        return const Color(0xFF8BA8D4);
+    }
+  }
+
+  Future<void> _deleteTransaction(TransactionSnapshot transaction) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFFF5C7A)),
+        ),
+        title: const Text('Supprimer la transaction',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('Voulez-vous vraiment supprimer "${transaction.label}" ?',
+            style: const TextStyle(color: Color(0xFF8BA8D4))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5C7A),
+                foregroundColor: Colors.white),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _transactionService.deleteTransaction(transaction.id);
+      _showSuccess('Transaction supprimée');
+    }
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: const Color(0xFF3EFFA8),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
   }
 
   @override
@@ -123,14 +167,28 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildSearchBar(),
-            _buildFilterChips(),
-            _buildSummaryRow(),
-            Expanded(child: _buildList()),
-          ],
+        child: RefreshIndicator(
+          onRefresh: _loadTransactions,
+          color: const Color(0xFF3EFFA8),
+          strokeWidth: 2.5,
+          displacement: 60,
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildSearchBar(),
+              _buildFilterChips(),
+              _buildSummaryRow(),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8)),
+                  ),
+                )
+                    : _buildList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -266,13 +324,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildSummaryRow() {
-    final income = _filtered
-        .where((t) => t.isIncome)
-        .fold<double>(0, (s, t) => s + t.amount);
-    final expense = _filtered
-        .where((t) => !t.isIncome)
-        .fold<double>(0, (s, t) => s + t.amount.abs());
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
@@ -282,7 +333,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   color: Color(0xFF4A6080), fontSize: 12)),
           const Spacer(),
           if (_filterIndex != 1)
-            Text('+${income.toStringAsFixed(0)} TND',
+            Text('+${_totalIncome.toStringAsFixed(0)} TND',
                 style: const TextStyle(
                     color: Color(0xFF3EFFA8),
                     fontSize: 12,
@@ -290,7 +341,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           if (_filterIndex == 0) const Text('  ·  ',
               style: TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
           if (_filterIndex != 2)
-            Text('-${expense.toStringAsFixed(0)} TND',
+            Text('-${_totalExpense.toStringAsFixed(0)} TND',
                 style: const TextStyle(
                     color: Color(0xFFFF5C7A),
                     fontSize: 12,
@@ -328,10 +379,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildTxCard(_Transaction tx) {
+  Widget _buildTxCard(TransactionSnapshot tx) {
+    final isIncome = tx.isIncome;
+    final amountColor = isIncome ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A);
+    final icon = _getIconForCategory(tx.category, isIncome);
+    final color = _getColorForCategory(tx.category, isIncome);
+    final prefix = isIncome ? '+' : '-';
+
     return Dismissible(
-      key: Key(tx.label + tx.date),
+      key: Key(tx.id),
       direction: DismissDirection.endToStart,
+      onDismissed: (_) => _deleteTransaction(tx),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -357,9 +415,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               height: 42,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: tx.color.withOpacity(0.12),
+                color: color.withOpacity(0.12),
               ),
-              child: Icon(tx.icon, color: tx.color, size: 20),
+              child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -370,7 +428,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
-                          fontWeight: FontWeight.w600)),
+                          fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -379,27 +439,34 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
-                          color: tx.color.withOpacity(0.1),
+                          color: color.withOpacity(0.1),
                         ),
                         child: Text(tx.category,
                             style: TextStyle(
-                                color: tx.color, fontSize: 10)),
+                                color: color, fontSize: 10)),
                       ),
                       const SizedBox(width: 6),
-                      Text(tx.date,
+                      Text(tx.formattedDate,
                           style: const TextStyle(
                               color: Color(0xFF4A6080), fontSize: 10)),
                     ],
                   ),
+                  if (tx.note != null && tx.note!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(tx.note!,
+                          style: const TextStyle(
+                              color: Color(0xFF4A6080), fontSize: 10),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                 ],
               ),
             ),
             Text(
-              '${tx.isIncome ? '+' : ''}${tx.amount.toStringAsFixed(2)} TND',
+              '$prefix ${tx.amount.toStringAsFixed(2)} TND',
               style: TextStyle(
-                color: tx.isIncome
-                    ? const Color(0xFF3EFFA8)
-                    : const Color(0xFFFF5C7A),
+                color: amountColor,
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
@@ -409,21 +476,4 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
     );
   }
-}
-
-class _Transaction {
-  final String label, category, date;
-  final double amount;
-  final IconData icon;
-  final Color color;
-  final bool isIncome;
-  const _Transaction({
-    required this.label,
-    required this.category,
-    required this.amount,
-    required this.date,
-    required this.icon,
-    required this.color,
-    required this.isIncome,
-  });
 }

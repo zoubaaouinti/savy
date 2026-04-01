@@ -107,6 +107,7 @@ class BudgetCategorySnapshot {
       );
 }
 
+// ⚠️ CORRECTION ICI : Ajout du paramètre note et suppression du const
 class TransactionSnapshot {
   final String id;
   final String label;
@@ -116,7 +117,7 @@ class TransactionSnapshot {
   final DateTime date;
   final String? note;
 
-  const TransactionSnapshot({
+  TransactionSnapshot({
     required this.id,
     required this.label,
     required this.amount,
@@ -146,6 +147,17 @@ class TransactionSnapshot {
             : DateTime.now(),
         note: map['note'],
       );
+
+  Map<String, dynamic> toMap() {
+    return {
+      'label': label,
+      'amount': amount,
+      'category': category,
+      'isIncome': isIncome,
+      'date': date.millisecondsSinceEpoch,
+      'note': note,
+    };
+  }
 }
 
 class ObjectiveSnapshot {

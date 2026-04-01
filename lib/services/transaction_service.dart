@@ -10,13 +10,15 @@ class TransactionService {
   String get _userId => _auth.currentUser?.uid ?? '';
 
   // ─────────────────────────────────────────────────────────────
-  //  AJOUTER UNE DÉPENSE
+  //  AJOUTER UNE TRANSACTION (méthode utilitaire)
   // ─────────────────────────────────────────────────────────────
-  Future<void> addExpense({
-    required String category,
+  Future<void> _addTransaction({
+    required String label,
     required double amount,
-    required String note,
+    required String category,
+    required bool isIncome,
     required DateTime date,
+    String? note,
   }) async {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
@@ -29,35 +31,67 @@ class TransactionService {
 
       await transactionRef.set({
         'id': transactionRef.id,
-        'label': note.isNotEmpty ? note : 'Dépense $category',
+        'label': label,
         'amount': amount,
         'category': category,
-        'isIncome': false,
+        'isIncome': isIncome,
         'date': date.millisecondsSinceEpoch,
-        'note': note,
+        'note': note ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      print('✅ Transaction ajoutée: $label');
+    } catch (e) {
+      print('❌ Erreur ajout transaction: $e');
+      rethrow;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  AJOUTER UNE DÉPENSE
+  // ─────────────────────────────────────────────────────────────
+  Future<void> addExpense({
+    required String category,
+    required double amount,
+    required String note,
+    required DateTime date,
+  }) async {
+    try {
+      if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
+
+      // Ajouter la transaction
+      await _addTransaction(
+        label: note.isNotEmpty ? note : 'Dépense $category',
+        amount: amount,
+        category: category,
+        isIncome: false,
+        date: date,
+        note: note,
+      );
 
       // Mettre à jour le budget de la catégorie
       await _updateBudgetSpent(category, amount);
 
+      print('✅ Dépense ajoutée: $category - $amount TND');
     } catch (e) {
       throw Exception('Erreur lors de l\'ajout de la dépense: $e');
     }
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  AJOUTER UN REVENU
+  //  AJOUTER UN REVENU (avec transaction automatique)
   // ─────────────────────────────────────────────────────────────
   Future<void> addRevenue({
     required String source,
     required double amount,
     required String type,
     required DateTime date,
+    String? note,
   }) async {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
 
+      // 1. Ajouter à la collection des revenus
       final revenueRef = _firestore
           .collection('users')
           .doc(_userId)
@@ -73,6 +107,17 @@ class TransactionService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // 2. Ajouter également comme transaction pour l'historique
+      await _addTransaction(
+        label: source,
+        amount: amount,
+        category: 'Revenu',
+        isIncome: true,
+        date: date,
+        note: note,
+      );
+
+      print('✅ Revenu ajouté: $source - $amount TND');
     } catch (e) {
       throw Exception('Erreur lors de l\'ajout du revenu: $e');
     }
