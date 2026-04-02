@@ -219,18 +219,4 @@ final List<ContactOption> contactOptions = [
     colorValue: 0xFF3EFFA8,
     action: 'mailto:support@savy.app',
   ),
-  ContactOption(
-    title: 'Signaler un bug',
-    subtitle: 'Aidez-nous à améliorer Savy',
-    iconName: 'bug',
-    colorValue: 0xFFFFB340,
-    action: 'bug_report',
-  ),
-  ContactOption(
-    title: 'Donner un avis',
-    subtitle: 'Notez l\'application',
-    iconName: 'star',
-    colorValue: 0xFF00D4FF,
-    action: 'rate_app',
-  ),
 ];

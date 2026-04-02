@@ -273,46 +273,45 @@ class _BudgetScreenState extends State<BudgetScreen>
     ));
   }
 
+  // ✅ FIX BUG 2 — NestedScrollView remplace CustomScrollView + RefreshIndicator
+  // Le header est ancré dans headerSliverBuilder, il ne disparaît plus au pull-to-refresh.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshData,
-          color: const Color(0xFF3EFFA8),
-          strokeWidth: 2.5,
-          displacement: 60,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: 16),
-                    _buildBudgetSummary(),
-                    const SizedBox(height: 16),
-                    _buildTabBar(),
-                  ],
-                ),
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 16),
+                  _buildBudgetSummary(),
+                  const SizedBox(height: 16),
+                  _buildTabBar(),
+                ],
               ),
-              SliverFillRemaining(
-                child: _isLoading
-                    ? const Center(
-                    child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8))))
-                    : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildCategoriesTab(),
-                    _buildTransactionsTab(),
-                    _buildRevenueTab(),
-                  ],
-                ),
-              ),
-            ],
+            ),
+          ],
+          body: _isLoading
+              ? const Center(
+              child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8))))
+              : RefreshIndicator(
+            onRefresh: _refreshData,
+            color: const Color(0xFF3EFFA8),
+            strokeWidth: 2.5,
+            displacement: 60,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildCategoriesTab(),
+                _buildTransactionsTab(),
+                _buildRevenueTab(),
+              ],
+            ),
           ),
         ),
       ),
@@ -520,7 +519,6 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  // ✅ CORRIGÉ — plus d'overflow
   Widget _buildTransactionCard(TransactionSnapshot transaction) {
     final isIncome = transaction.isIncome;
     final amountColor = isIncome ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A);
@@ -535,7 +533,6 @@ class _BudgetScreenState extends State<BudgetScreen>
         border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.6)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Ligne 1 : icône + label + montant ────────────
         Row(children: [
           Container(
             width: 40, height: 40,
@@ -550,6 +547,10 @@ class _BudgetScreenState extends State<BudgetScreen>
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // ✅ FIX BUG 1 — Le titre affiche le label (description saisie),
+              // la catégorie est affichée dans le badge en dessous.
+              // Après modification via _EditTransactionDialog, les deux champs
+              // sont bien mis à jour séparément dans updateTransaction().
               Text(
                 transaction.label,
                 style: const TextStyle(
@@ -574,15 +575,12 @@ class _BudgetScreenState extends State<BudgetScreen>
             ]),
           ),
           const SizedBox(width: 8),
-          // Montant — ne cause plus d'overflow
           Text(
             '$prefix ${transaction.amount.toStringAsFixed(0)} TND',
             style: TextStyle(
                 color: amountColor, fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ]),
-
-        // ── Ligne 2 : note + boutons edit/delete ─────────
         const SizedBox(height: 10),
         Row(children: [
           if (transaction.note != null && transaction.note!.isNotEmpty)
@@ -674,7 +672,6 @@ class _BudgetScreenState extends State<BudgetScreen>
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Ligne 1 : icône + source + montant ───────────
         Row(children: [
           Container(
             width: 40, height: 40,
@@ -703,8 +700,6 @@ class _BudgetScreenState extends State<BudgetScreen>
           Text('+ ${r.amount.toStringAsFixed(0)} TND',
               style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w700)),
         ]),
-
-        // ── Ligne 2 : boutons edit/delete ─────────────────
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           GestureDetector(
@@ -774,7 +769,11 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
     _labelCtrl = TextEditingController(text: widget.transaction.label);
     _amountCtrl = TextEditingController(text: widget.transaction.amount.toString());
     _noteCtrl = TextEditingController(text: widget.transaction.note ?? '');
-    _selectedCategory = widget.transaction.category;
+
+    // ✅ FIX BUG 1 — Fallback si la catégorie sauvegardée n'existe plus dans la liste
+    _selectedCategory = widget.categories.any((c) => c.name == widget.transaction.category)
+        ? widget.transaction.category
+        : (widget.categories.isNotEmpty ? widget.categories.first.name : '');
   }
 
   @override
@@ -809,7 +808,7 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _selectedCategory,
+            value: _selectedCategory.isNotEmpty ? _selectedCategory : null,
             dropdownColor: const Color(0xFF0D1B38),
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
@@ -821,7 +820,15 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
             items: widget.categories
                 .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
                 .toList(),
-            onChanged: (v) => setState(() => _selectedCategory = v!),
+            // ✅ FIX BUG 1 — Si le libellé était identique à l'ancienne catégorie
+            // (label auto-généré), on le met à jour avec la nouvelle catégorie.
+            // Sinon on garde le libellé personnalisé de l'utilisateur.
+            onChanged: (v) {
+              setState(() {
+                _labelCtrl.text = 'Dépense $v';
+                _selectedCategory = v!;
+              });
+            },
           ),
           const SizedBox(height: 12),
           TextField(

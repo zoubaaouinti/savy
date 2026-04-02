@@ -470,6 +470,11 @@ class _HelpScreenState extends State<HelpScreen>
 
   // ── Contact Section ───────────────────────────────────────
   Widget _buildContactSection() {
+    final filteredOptions = contactOptions.where((opt) =>
+    opt.action != 'report_bug' &&
+        opt.action != 'rate_app'
+    ).toList();
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -477,10 +482,11 @@ class _HelpScreenState extends State<HelpScreen>
         border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.6)),
       ),
       child: Column(
-        children: List.generate(contactOptions.length, (i) {
-          final opt = contactOptions[i];
+        children: List.generate(filteredOptions.length, (i) {
+          final opt = filteredOptions[i];
           final color = Color(opt.colorValue);
-          final isLast = i == contactOptions.length - 1;
+          final isLast = i == filteredOptions.length - 1;
+
           return Column(
             children: [
               GestureDetector(
@@ -523,8 +529,11 @@ class _HelpScreenState extends State<HelpScreen>
                 ),
               ),
               if (!isLast)
-                Divider(height: 1, indent: 68,
-                    color: const Color(0xFF1A2E52).withOpacity(0.4)),
+                Divider(
+                  height: 1,
+                  indent: 68,
+                  color: const Color(0xFF1A2E52).withOpacity(0.4),
+                ),
             ],
           );
         }),
@@ -533,341 +542,10 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   void _handleContact(String action) {
-    switch (action) {
-      case 'bug_report':
-        _showBugReportDialog();
-        break;
-      case 'rate_app':
-        _showRatingDialog();
-        break;
-      default:
-      // Email support
-        _showEmailSupportDialog();
-        break;
-    }
+    // Tous les cas redirigent vers le support email
+    _showEmailSupportDialog();
   }
 
-  void _showRatingDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          int rating = 0;
-          final messageCtrl = TextEditingController();
-          bool isSubmitting = false;
-
-          return Dialog(
-            backgroundColor: const Color(0xFF0B1535),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: const Color(0xFF3EFFA8).withOpacity(0.3)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF3EFFA8).withOpacity(0.12),
-                        ),
-                        child: const Icon(Icons.star_rounded,
-                            color: Color(0xFF3EFFA8), size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Évaluez Savy',
-                              style: TextStyle(color: Colors.white,
-                                  fontSize: 15, fontWeight: FontWeight.w800)),
-                          Text('Votre avis nous aide à nous améliorer',
-                              style: TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Étoiles interactives
-                  Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(5, (i) {
-                          return GestureDetector(
-                            onTap: () {
-                              setDialogState(() => rating = i + 1);
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(
-                                i < rating ? Icons.star_rounded : Icons.star_border_rounded,
-                                color: i < rating ? const Color(0xFF3EFFA8) : const Color(0xFF4A6080),
-                                size: 32,
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _getRatingText(rating),
-                        style: TextStyle(
-                          color: rating > 0 ? const Color(0xFF3EFFA8) : const Color(0xFF4A6080),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Message optionnel
-                  const Text('Commentaire (optionnel)',
-                      style: TextStyle(color: Color(0xFF8BA8D4),
-                          fontSize: 12, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: messageCtrl,
-                    maxLines: 3,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Dites-nous ce que vous pensez de Savy...',
-                      hintStyle: const TextStyle(color: Color(0xFF3A5068), fontSize: 13),
-                      filled: true,
-                      fillColor: const Color(0xFF0D1B38),
-                      contentPadding: const EdgeInsets.all(14),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF3EFFA8), width: 1.5)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Boutons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF1A2E52)),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: const Text('Annuler',
-                              style: TextStyle(color: Color(0xFF8BA8D4),
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            gradient: LinearGradient(
-                              colors: isSubmitting || rating == 0
-                                  ? [const Color(0xFF3EFFA8).withOpacity(0.5),
-                                const Color(0xFF00D4FF).withOpacity(0.5)]
-                                  : [const Color(0xFF3EFFA8), const Color(0xFF00D4FF)],
-                            ),
-                          ),
-                          child: ElevatedButton(
-                            onPressed: isSubmitting || rating == 0 ? null : () async {
-                              setDialogState(() => isSubmitting = true);
-
-                              // Récupère les infos utilisateur
-                              final user = FirebaseAuth.instance.currentUser;
-                              final userName = user?.displayName ?? 'Utilisateur Savy';
-                              final userEmail = user?.email ?? 'email inconnu';
-
-                              // Crée l'avis
-                              final review = UserReview(
-                                rating: rating,
-                                message: messageCtrl.text.trim(),
-                                userName: userName,
-                                userEmail: userEmail,
-                                timestamp: DateTime.now(),
-                              );
-
-                              // Envoi via EmailJS
-                              final result = await EmailJSService.sendReviewEmail(review);
-
-                              if (!dialogContext.mounted) return;
-
-                              if (result.isSuccess) {
-                                Navigator.pop(dialogContext);
-                                _showReviewConfirmationDialog(rating);
-                              } else {
-                                setDialogState(() => isSubmitting = false);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        result.errorMessage ?? "Erreur lors de l'envoi",
-                                        style: const TextStyle(color: Colors.white)),
-                                    backgroundColor: const Color(0xFFFF5C7A),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            child: isSubmitting
-                                ? const SizedBox(width: 18, height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation(Color(0xFF060D1F)),
-                                ))
-                                : const Text('Envoyer',
-                                style: TextStyle(color: Color(0xFF060D1F),
-                                    fontWeight: FontWeight.w700, fontSize: 14)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  String _getRatingText(int rating) {
-    switch (rating) {
-      case 1:
-        return 'Pas satisfait';
-      case 2:
-        return 'Moyen';
-      case 3:
-        return 'Bien';
-      case 4:
-        return 'Très bien';
-      case 5:
-        return 'Excellent !';
-      default:
-        return 'Choisissez une note';
-    }
-  }
-
-  // ── Review confirmation dialog ───────────────────────────────
-  void _showReviewConfirmationDialog(int rating) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF0B1535),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: const Color(0xFF3EFFA8).withOpacity(0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icône succès avec étoiles
-              Container(
-                width: 70, height: 70,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF3EFFA8).withOpacity(0.1),
-                  border: Border.all(
-                      color: const Color(0xFF3EFFA8).withOpacity(0.4), width: 2),
-                  boxShadow: [BoxShadow(
-                      color: const Color(0xFF3EFFA8).withOpacity(0.2),
-                      blurRadius: 20, spreadRadius: 3)],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_rounded,
-                        color: Color(0xFF3EFFA8), size: 28),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (i) => 
-                        Icon(
-                          i < rating ? Icons.star_rounded : Icons.star_border_rounded,
-                          color: const Color(0xFF3EFFA8),
-                          size: 8,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                    colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-                child: const Text('Merci pour votre avis !',
-                    style: TextStyle(color: Colors.white,
-                        fontSize: 18, fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(height: 10),
-
-              const Text(
-                'Votre évaluation nous aide beaucoup à améliorer Savy.\nNous l\'avons bien reçue et vous en remercions.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B8CAE),
-                    fontSize: 13, height: 1.6),
-              ),
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity, height: 46,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]),
-                  ),
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Super !',
-                        style: TextStyle(color: Color(0xFF060D1F),
-                            fontWeight: FontWeight.w700, fontSize: 15)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // ── Email support dialog ──────────────────────────────────
   void _showEmailSupportDialog() {
@@ -1174,108 +852,6 @@ class _HelpScreenState extends State<HelpScreen>
     );
   }
 
-  void _showBugReportDialog() {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF0B1535),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-              color: const Color(0xFFFFB340).withOpacity(0.3)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Signaler un bug',
-                  style: TextStyle(color: Colors.white, fontSize: 16,
-                      fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              const Text('Décrivez le problème que vous avez rencontré',
-                  style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 12)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: ctrl,
-                maxLines: 4,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Ex: L\'app se ferme quand je...',
-                  hintStyle: const TextStyle(
-                      color: Color(0xFF3A5068), fontSize: 13),
-                  filled: true,
-                  fillColor: const Color(0xFF0D1B38),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF1A2E52)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF1A2E52)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: Color(0xFFFFB340), width: 1.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF1A2E52)),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Annuler',
-                          style: TextStyle(color: Color(0xFF8BA8D4))),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Rapport envoyé, merci !',
-                                style: TextStyle(color: Colors.white)),
-                            backgroundColor: const Color(0xFF0D1B38),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(
-                                  color: Color(0xFFFFB340)),
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFB340),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Envoyer',
-                          style: TextStyle(
-                              color: Color(0xFF060D1F),
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // ── Version card ──────────────────────────────────────────
   Widget _buildVersionCard() {

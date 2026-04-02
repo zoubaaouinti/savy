@@ -91,7 +91,7 @@ class TransactionService {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
 
-      // 1. Ajouter à la collection des revenus
+      // Seulement la collection revenues, plus de doublon dans transactions
       final revenueRef = _firestore
           .collection('users')
           .doc(_userId)
@@ -106,16 +106,6 @@ class TransactionService {
         'date': date.millisecondsSinceEpoch,
         'createdAt': FieldValue.serverTimestamp(),
       });
-
-      // 2. Ajouter également comme transaction pour l'historique
-      await _addTransaction(
-        label: source,
-        amount: amount,
-        category: 'Revenu',
-        isIncome: true,
-        date: date,
-        note: note,
-      );
 
       print('✅ Revenu ajouté: $source - $amount TND');
     } catch (e) {
@@ -474,7 +464,21 @@ class TransactionService {
       );
     }).toList());
   }
+  Stream<List<RevenueSnapshot>> getRevenuesStream() {
+    if (_userId.isEmpty) {
+      return Stream.value([]);
+    }
 
+    return _firestore
+        .collection('users')
+        .doc(_userId)
+        .collection('revenues')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => RevenueSnapshot.fromMap(doc.id, doc.data()))
+        .toList());
+  }
   // ─────────────────────────────────────────────────────────────
   //  INITIALISER LES BUDGETS PAR DÉFAUT
   // ─────────────────────────────────────────────────────────────
