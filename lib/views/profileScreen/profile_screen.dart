@@ -67,10 +67,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(user.uid)
           .get();
 
-      if (doc.exists && doc.data()?['photoBase64'] != null) {
-        final base64Str = doc.data()!['photoBase64'] as String;
-        final bytes = base64Decode(base64Str);
-        if (mounted) setState(() => _photoBytes = Uint8List.fromList(bytes));
+      if (doc.exists) {
+        final photoBase64 = doc.data()?['photoBase64'] as String?;
+        if (mounted) {
+          setState(() => _photoBytes = photoBase64 != null
+              ? Uint8List.fromList(base64Decode(photoBase64))
+              : null);
+        }
       }
     } catch (_) {}
   }

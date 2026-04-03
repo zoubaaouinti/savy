@@ -26,6 +26,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   String? _successMessage;
   File? _localPhoto;
   Uint8List? _photoBytes;
+  bool _photoDeleted = false;
   late Gender _selectedGender;
   DateTime? _selectedBirthDate;
   final ImagePicker _picker = ImagePicker();
@@ -90,7 +91,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               _photoOption(Icons.camera_alt_rounded, 'Prendre une photo', const Color(0xFF00D4FF), () { Navigator.pop(context); _pickImage(ImageSource.camera); }),
               if (_photoBytes != null || _localPhoto != null) ...[
                 const SizedBox(height: 12),
-                _photoOption(Icons.delete_outline_rounded, 'Supprimer la photo', const Color(0xFFFF5C7A), () { Navigator.pop(context); setState(() { _localPhoto = null; _photoBytes = null; }); }),
+                _photoOption(Icons.delete_outline_rounded, 'Supprimer la photo', const Color(0xFFFF5C7A), () { Navigator.pop(context); setState(() { _localPhoto = null; _photoBytes = null; _photoDeleted = true; }); }),
               ],
             ],
           ),
@@ -124,7 +125,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     }
     try {
       final XFile? picked = await _picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 85);
-      if (picked != null) setState(() { _localPhoto = File(picked.path); _errorMessage = null; });
+      if (picked != null) setState(() { _localPhoto = File(picked.path); _photoDeleted = false; _errorMessage = null; });
     } catch (e) {
       setState(() => _errorMessage = "Impossible d'accéder à la source");
     }
@@ -153,23 +154,30 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      String? base64Photo;
+      String? finalPhotoBase64;
       if (_localPhoto != null) {
         final bytes = await _localPhoto!.readAsBytes();
-        base64Photo = base64Encode(bytes);
+        finalPhotoBase64 = base64Encode(bytes);
+      } else if (_photoDeleted) {
+        finalPhotoBase64 = null;
+      } else {
+        // Pas de changement → garder la photo existante (déjà en mémoire dans _photoBytes)
+        finalPhotoBase64 = _photoBytes != null ? base64Encode(_photoBytes!) : widget.profile.photoBase64;
       }
+
       if (_nameCtrl.text.trim() != widget.profile.name) await user.updateDisplayName(_nameCtrl.text.trim());
       if (_emailCtrl.text.trim() != widget.profile.email) {
         await user.verifyBeforeUpdateEmail(_emailCtrl.text.trim());
         setState(() => _successMessage = 'Email de vérification envoyé à ${_emailCtrl.text}');
       }
-      final updatedProfile = widget.profile.copyWith(
+      final updatedProfile = widget.profile.copyWithPhoto(
         name: _nameCtrl.text.trim(), email: _emailCtrl.text.trim(),
         gender: _selectedGender, birthDate: _selectedBirthDate,
-        photoBase64: base64Photo ?? widget.profile.photoBase64,
+        photoBase64: finalPhotoBase64,
       );
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set(updatedProfile.toMap(), SetOptions(merge: true));
-      if (base64Photo != null) setState(() => _photoBytes = base64Decode(base64Photo!));
+      if (_localPhoto != null) setState(() => _photoBytes = base64Decode(finalPhotoBase64!));
+      if (_photoDeleted) setState(() { _photoBytes = null; _photoDeleted = false; });
       if (!mounted) return;
       setState(() { _isLoading = false; _successMessage ??= 'Profil mis à jour ✓'; });
       await Future.delayed(const Duration(milliseconds: 800));

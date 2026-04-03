@@ -111,7 +111,7 @@ class UserProfile {
     return {
       'name': name,
       'email': email,
-      if (photoBase64 != null) 'photoBase64': photoBase64,
+      'photoBase64': photoBase64, // toujours inclus (null supprime le champ dans Firestore)
       'gender': gender.value,
       if (birthDate != null) 'birthDate': birthDate!.millisecondsSinceEpoch,
       if (phone != null) 'phone': phone,
@@ -132,6 +132,28 @@ class UserProfile {
       name: name ?? this.name,
       email: email ?? this.email,
       photoBase64: photoBase64 ?? this.photoBase64,
+      gender: gender ?? this.gender,
+      birthDate: birthDate ?? this.birthDate,
+      phone: phone ?? this.phone,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  // Variante permettant de passer explicitement null pour photoBase64 (suppression)
+  UserProfile copyWithPhoto({
+    String? name,
+    String? email,
+    required String? photoBase64,
+    Gender? gender,
+    DateTime? birthDate,
+    String? phone,
+  }) {
+    return UserProfile(
+      uid: uid,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      photoBase64: photoBase64,
       gender: gender ?? this.gender,
       birthDate: birthDate ?? this.birthDate,
       phone: phone ?? this.phone,
