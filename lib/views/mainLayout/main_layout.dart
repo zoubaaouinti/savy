@@ -10,18 +10,16 @@ class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
 
   @override
-  State<MainLayout> createState() => _MainLayoutState();
+  MainLayoutState createState() => MainLayoutState();  // ⚠️ Retourne maintenant MainLayoutState (public)
 }
 
-class _MainLayoutState extends State<MainLayout>
+class MainLayoutState  extends State<MainLayout>
     with TickerProviderStateMixin {
   int _currentIndex = 0;
 
-  // Controllers d'animation pour chaque tab
   late final List<AnimationController> _tabControllers;
   late final List<Animation<double>> _tabScales;
 
-  // Pages indexées
   final List<Widget> _pages = const [
     HomeScreen(),
     BudgetScreen(),
@@ -30,7 +28,6 @@ class _MainLayoutState extends State<MainLayout>
     ProfileScreen(),
   ];
 
-  // Config de la navbar
   final List<_NavItem> _navItems = const [
     _NavItem(icon: Icons.dashboard_rounded,       label: 'Accueil'),
     _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Budget'),
@@ -38,6 +35,16 @@ class _MainLayoutState extends State<MainLayout>
     _NavItem(icon: Icons.receipt_long_rounded,    label: 'Dépenses'),
     _NavItem(icon: Icons.person_rounded,          label: 'Profil'),
   ];
+
+  // ⭐ MÉTHODE PUBLIQUE pour changer l'index depuis n'importe quel écran
+  void setCurrentIndex(int index) {
+    if (index == _currentIndex) return;
+    HapticFeedback.selectionClick();
+
+    _tabControllers[_currentIndex].reverse();
+    setState(() => _currentIndex = index);
+    _tabControllers[index].forward();
+  }
 
   @override
   void initState() {
@@ -55,7 +62,6 @@ class _MainLayoutState extends State<MainLayout>
       );
     }).toList();
 
-    // Active le premier tab
     _tabControllers[0].forward();
   }
 
@@ -68,23 +74,13 @@ class _MainLayoutState extends State<MainLayout>
   }
 
   void _onTabTapped(int index) {
-    if (index == _currentIndex) return;
-    HapticFeedback.selectionClick();
-
-    // Reset ancien tab
-    _tabControllers[_currentIndex].reverse();
-
-    setState(() => _currentIndex = index);
-
-    // Anime le nouveau tab
-    _tabControllers[index].forward();
+    setCurrentIndex(index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
-      // IndexedStack garde les pages en mémoire (pas de rebuild)
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
@@ -117,7 +113,6 @@ class _MainLayoutState extends State<MainLayout>
           height: 64,
           child: Row(
             children: List.generate(_navItems.length, (i) {
-              // Tab central (index 2 = Objectifs) → bouton FAB spécial
               if (i == 2) return _buildCenterFab(i);
               return _buildNavTab(i);
             }),
@@ -142,7 +137,6 @@ class _MainLayoutState extends State<MainLayout>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Indicateur actif (point lumineux)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   width: isActive ? 24 : 0,
@@ -155,7 +149,6 @@ class _MainLayoutState extends State<MainLayout>
                     ),
                   ),
                 ),
-                // Icône
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   padding: const EdgeInsets.all(6),
@@ -174,7 +167,6 @@ class _MainLayoutState extends State<MainLayout>
                   ),
                 ),
                 const SizedBox(height: 2),
-                // Label
                 AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 250),
                   style: TextStyle(
@@ -245,7 +237,6 @@ class _MainLayoutState extends State<MainLayout>
   }
 }
 
-// ── Nav Item model ────────────────────────────────────────────
 class _NavItem {
   final IconData icon;
   final String label;

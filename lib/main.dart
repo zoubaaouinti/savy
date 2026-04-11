@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:savy/firebase_options.dart';
 import 'package:savy/views/auth/login_screen.dart';
 import 'package:savy/views/splashScreen/splash_screen.dart' hide LoginScreen;
@@ -9,6 +11,9 @@ import 'package:savy/views/legalScreen/legal_screens.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Nécessaire pour le calendrier en français ──────────────
+  await initializeDateFormatting('fr', null);
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -37,6 +42,19 @@ class SavyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Savy',
       debugShowCheckedModeBanner: false,
+
+      // ── Localisation française (calendrier, dates…) ────────
+      locale: const Locale('fr', 'FR'),
+      supportedLocales: const [
+        Locale('fr', 'FR'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF3EFFA8),
@@ -46,14 +64,15 @@ class SavyApp extends StatelessWidget {
         fontFamily: 'Roboto',
         useMaterial3: true,
       ),
+
       initialRoute: AppRoutes.splash,
       routes: {
-        AppRoutes.splash:  (_) => const SplashScreen(),
-        AppRoutes.login:   (_) => const LoginScreen(),
-        AppRoutes.signUp:  (_) => const SignUpScreen(),
-        AppRoutes.home:    (_) => const MainLayout(),
-        AppRoutes.terms:   (_) => const TermsScreen(),
-        AppRoutes.privacy: (_) => const PrivacyScreen(),
+        AppRoutes.splash:   (_) => const SplashScreen(),
+        AppRoutes.login:    (_) => const LoginScreen(),
+        AppRoutes.signUp:   (_) => const SignUpScreen(),
+        AppRoutes.home:     (_) => const MainLayout(),
+        AppRoutes.terms:    (_) => const TermsScreen(),
+        AppRoutes.privacy:  (_) => const PrivacyScreen(),
       },
       onGenerateRoute: (settings) {
         switch (settings.name) {
@@ -83,7 +102,8 @@ class SavyApp extends StatelessWidget {
     transitionDuration: const Duration(milliseconds: 400),
   );
 
-  static PageRouteBuilder _slideRoute(Widget page, {bool fromRight = true}) =>
+  static PageRouteBuilder _slideRoute(Widget page,
+      {bool fromRight = true}) =>
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => page,
         transitionsBuilder: (_, animation, __, child) => SlideTransition(

@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../mainLayout/main_layout.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,12 +52,22 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // Méthode pour changer l'index du MainLayout
+  void _changeTab(int index) {
+    HapticFeedback.selectionClick();
+    // Cherche le MainLayoutState dans l'arbre
+    final mainLayoutState = context.findAncestorStateOfType<MainLayoutState>();
+    if (mainLayoutState != null) {
+      mainLayoutState.setCurrentIndex(index);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF060D1F),
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           // Background
@@ -89,11 +101,17 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 20),
                     _buildSuggestionCard(),
                     const SizedBox(height: 20),
-                    _buildSectionTitle('Objectifs en cours'),
+                    _buildSectionTitle(
+                      'Objectifs en cours',
+                      onSeeAll: () => _changeTab(2), // Index 2 = Objectifs
+                    ),
                     const SizedBox(height: 12),
                     _buildObjectivesList(),
                     const SizedBox(height: 20),
-                    _buildSectionTitle('Dernières transactions'),
+                    _buildSectionTitle(
+                      'Dernières transactions',
+                      onSeeAll: () => _changeTab(3), // Index 3 = Transactions
+                    ),
                     const SizedBox(height: 12),
                     _buildTransactionsList(),
                   ],
@@ -539,8 +557,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Section title ─────────────────────────────────────────
-  Widget _buildSectionTitle(String title) {
+  // ── Section title avec callback pour navigation ───────────
+  Widget _buildSectionTitle(String title, {required VoidCallback onSeeAll}) {
     return Row(
       children: [
         Text(title,
@@ -549,8 +567,11 @@ class _HomeScreenState extends State<HomeScreen>
                 fontSize: 16,
                 fontWeight: FontWeight.w700)),
         const Spacer(),
-        const Text('Voir tout',
-            style: TextStyle(color: Color(0xFF3EFFA8), fontSize: 12)),
+        GestureDetector(
+          onTap: onSeeAll,
+          child: const Text('Voir tout',
+              style: TextStyle(color: Color(0xFF3EFFA8), fontSize: 12)),
+        ),
       ],
     );
   }
@@ -645,7 +666,7 @@ class _HomeScreenState extends State<HomeScreen>
       _TxData(
           label: 'Bourse universitaire',
           category: 'Revenu',
-          amount: - 600.0,
+          amount: 600.0,
           icon: Icons.school_outlined,
           color: const Color(0xFF3EFFA8)),
       _TxData(
