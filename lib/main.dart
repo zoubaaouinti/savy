@@ -3,17 +3,24 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
 import 'package:savy/firebase_options.dart';
+import 'package:savy/providers/currency_provider.dart';
+import 'package:savy/providers/language_provider.dart';
 import 'package:savy/views/auth/login_screen.dart';
 import 'package:savy/views/splashScreen/splash_screen.dart' hide LoginScreen;
 import 'package:savy/views/mainLayout/main_layout.dart';
 import 'package:savy/views/legalScreen/legal_screens.dart';
+import 'package:savy/views/onboarding/onboarding_screens.dart';
+import 'package:savy/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── Nécessaire pour le calendrier en français ──────────────
+  // ── Formatage de dates pour toutes les locales ─────────────
   await initializeDateFormatting('fr', null);
+  await initializeDateFormatting('en', null);
+  await initializeDateFormatting('ar', null);
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -31,7 +38,21 @@ void main() async {
     ),
   );
 
-  runApp(const SavyApp());
+  final currencyProvider = CurrencyProvider();
+  await currencyProvider.init();
+
+  final languageProvider = LanguageProvider();
+  await languageProvider.init();
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: currencyProvider),
+        ChangeNotifierProvider.value(value: languageProvider),
+      ],
+      child: const SavyApp(),
+    ),
+  );
 }
 
 class SavyApp extends StatelessWidget {
@@ -39,21 +60,36 @@ class SavyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    final locale = langProvider.locale;
+
     return MaterialApp(
       title: 'Savy',
       debugShowCheckedModeBanner: false,
 
-      // ── Localisation française (calendrier, dates…) ────────
-      locale: const Locale('fr', 'FR'),
+      // ── Localisation dynamique ─────────────────────────────
+      locale: locale,
       supportedLocales: const [
-        Locale('fr', 'FR'),
-        Locale('en', 'US'),
+        Locale('fr'),
+        Locale('en'),
+        Locale('ar'),
       ],
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+
+      // ── RTL automatique pour l'arabe ───────────────────────
+      builder: (context, child) {
+        return Directionality(
+          textDirection: locale.languageCode == 'ar'
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          child: child!,
+        );
+      },
 
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -67,12 +103,13 @@ class SavyApp extends StatelessWidget {
 
       initialRoute: AppRoutes.splash,
       routes: {
-        AppRoutes.splash:   (_) => const SplashScreen(),
-        AppRoutes.login:    (_) => const LoginScreen(),
-        AppRoutes.signUp:   (_) => const SignUpScreen(),
-        AppRoutes.home:     (_) => const MainLayout(),
-        AppRoutes.terms:    (_) => const TermsScreen(),
-        AppRoutes.privacy:  (_) => const PrivacyScreen(),
+        AppRoutes.splash:     (_) => const SplashScreen(),
+        AppRoutes.login:      (_) => const LoginScreen(),
+        AppRoutes.signUp:     (_) => const SignUpScreen(),
+        AppRoutes.home:       (_) => const MainLayout(),
+        AppRoutes.terms:      (_) => const TermsScreen(),
+        AppRoutes.privacy:    (_) => const PrivacyScreen(),
+        AppRoutes.onboarding: (_) => const OnboardingNameScreen(),
       },
       onGenerateRoute: (settings) {
         switch (settings.name) {
@@ -88,6 +125,8 @@ class SavyApp extends StatelessWidget {
             return _slideRoute(const TermsScreen(), fromRight: true);
           case AppRoutes.privacy:
             return _slideRoute(const PrivacyScreen(), fromRight: true);
+          case AppRoutes.onboarding:
+            return _slideRoute(const OnboardingNameScreen(), fromRight: false);
           default:
             return _fadeRoute(const LoginScreen());
         }
@@ -96,22 +135,22 @@ class SavyApp extends StatelessWidget {
   }
 
   static PageRouteBuilder _fadeRoute(Widget page) => PageRouteBuilder(
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, animation, __, child) =>
-        FadeTransition(opacity: animation, child: child),
-    transitionDuration: const Duration(milliseconds: 400),
-  );
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      );
 
   static PageRouteBuilder _slideRoute(Widget page,
-      {bool fromRight = true}) =>
+          {bool fromRight = true}) =>
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => page,
         transitionsBuilder: (_, animation, __, child) => SlideTransition(
           position: Tween<Offset>(
             begin: Offset(fromRight ? 1.0 : 0.0, fromRight ? 0.0 : 0.06),
             end: Offset.zero,
-          ).animate(CurvedAnimation(
-              parent: animation, curve: Curves.easeOutCubic)),
+          ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
           child: FadeTransition(opacity: animation, child: child),
         ),
         transitionDuration: const Duration(milliseconds: 350),
@@ -120,10 +159,11 @@ class SavyApp extends StatelessWidget {
 
 class AppRoutes {
   AppRoutes._();
-  static const String splash  = '/';
-  static const String login   = '/login';
-  static const String signUp  = '/signup';
-  static const String home    = '/home';
-  static const String terms   = '/terms';
-  static const String privacy = '/privacy';
+  static const String splash     = '/';
+  static const String login      = '/login';
+  static const String signUp     = '/signup';
+  static const String home       = '/home';
+  static const String terms      = '/terms';
+  static const String privacy    = '/privacy';
+  static const String onboarding = '/onboarding';
 }

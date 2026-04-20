@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
+import 'package:savy/providers/language_provider.dart';
 import '../budgetScreen/budget_screen.dart';
 import '../home/home_screen.dart';
 import '../objectivesScreen/objectives_screen.dart';
@@ -29,11 +32,11 @@ class MainLayoutState  extends State<MainLayout>
   ];
 
   final List<_NavItem> _navItems = const [
-    _NavItem(icon: Icons.dashboard_rounded,       label: 'Accueil'),
-    _NavItem(icon: Icons.account_balance_wallet_rounded, label: 'Budget'),
-    _NavItem(icon: Icons.flag_rounded,            label: 'Objectifs'),
-    _NavItem(icon: Icons.receipt_long_rounded,    label: 'Dépenses'),
-    _NavItem(icon: Icons.person_rounded,          label: 'Profil'),
+    _NavItem(icon: Icons.dashboard_rounded),
+    _NavItem(icon: Icons.account_balance_wallet_rounded),
+    _NavItem(icon: Icons.flag_rounded),
+    _NavItem(icon: Icons.receipt_long_rounded),
+    _NavItem(icon: Icons.person_rounded),
   ];
 
   // ⭐ MÉTHODE PUBLIQUE pour changer l'index depuis n'importe quel écran
@@ -77,6 +80,11 @@ class MainLayoutState  extends State<MainLayout>
     setCurrentIndex(index);
   }
 
+  List<String> _getNavLabels(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return [l10n.navHome, l10n.navBudget, l10n.navObjectives, l10n.navExpenses, l10n.navProfile];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,11 +93,11 @@ class MainLayoutState  extends State<MainLayout>
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: _buildNavBar(),
+      bottomNavigationBar: _buildNavBar(context),
     );
   }
 
-  Widget _buildNavBar() {
+  Widget _buildNavBar(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0B1535),
@@ -111,18 +119,24 @@ class MainLayoutState  extends State<MainLayout>
         top: false,
         child: SizedBox(
           height: 64,
-          child: Row(
-            children: List.generate(_navItems.length, (i) {
-              if (i == 2) return _buildCenterFab(i);
-              return _buildNavTab(i);
-            }),
+          child: Builder(
+            builder: (context) {
+              context.watch<LanguageProvider>();
+              final labels = _getNavLabels(context);
+              return Row(
+                children: List.generate(_navItems.length, (i) {
+                  if (i == 2) return _buildCenterFab(i);
+                  return _buildNavTab(i, labels[i]);
+                }),
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNavTab(int index) {
+  Widget _buildNavTab(int index, String label) {
     final isActive = _currentIndex == index;
     final item = _navItems[index];
 
@@ -177,7 +191,7 @@ class MainLayoutState  extends State<MainLayout>
                         ? const Color(0xFF3EFFA8)
                         : const Color(0xFF3A5570),
                   ),
-                  child: Text(item.label),
+                  child: Text(label),
                 ),
               ],
             ),
@@ -239,6 +253,5 @@ class MainLayoutState  extends State<MainLayout>
 
 class _NavItem {
   final IconData icon;
-  final String label;
-  const _NavItem({required this.icon, required this.label});
+  const _NavItem({required this.icon});
 }

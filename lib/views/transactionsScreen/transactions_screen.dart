@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
+import '../../providers/currency_provider.dart';
 import '../../services/transaction_service.dart';
 import '../../models/export_models.dart';
+import '../../utils/category_translator.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – TRANSACTIONS SCREEN
@@ -121,48 +125,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         return Icons.calendar_month_rounded;
       return Icons.trending_up_rounded;
     }
-
-    switch (category.toLowerCase()) {
-      case 'alimentation':
-        return Icons.restaurant_rounded;
-      case 'transport':
-        return Icons.directions_bus_rounded;
-      case 'loisirs':
-        return Icons.movie_rounded;
-      case 'académique':
-        return Icons.menu_book_rounded;
-      case 'santé':
-        return Icons.local_pharmacy_rounded;
-      default:
-        return Icons.shopping_cart_outlined;
-    }
+    return CategoryTranslator.iconFor(category);
   }
 
   Color _getColorForCategory(String category, bool isIncome) {
-    if (isIncome) return const Color(0xFF3EFFA8);
-
-    switch (category.toLowerCase()) {
-      case 'alimentation':
-        return const Color(0xFFFFB340);
-      case 'transport':
-        return const Color(0xFF00D4FF);
-      case 'loisirs':
-        return const Color(0xFFFF5C7A);
-      case 'académique':
-        return const Color(0xFF7B61FF);
-      case 'santé':
-        return const Color(0xFF3EFFA8);
-      default:
-        return const Color(0xFF8BA8D4);
-    }
+    return CategoryTranslator.colorForName(category, isIncome: isIncome);
   }
 
   Future<void> _deleteTransaction(TransactionSnapshot transaction) async {
+    final l10n = AppLocalizations.of(context);
     // ⚠️ Ne pas supprimer les revenus convertis depuis cette page
     if (transaction.id.startsWith('rev_')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Supprimez ce revenu depuis la page Revenus.'),
-        backgroundColor: Color(0xFF8BA8D4),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(l10n.transactionsRevenueHint),
+        backgroundColor: const Color(0xFF8BA8D4),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -176,30 +152,30 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Color(0xFFFF5C7A)),
         ),
-        title: const Text('Supprimer la transaction',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(l10n.transactionsDeleteTitle,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(
-            'Voulez-vous vraiment supprimer "${transaction.label}" ?',
+            '${l10n.transactionsDeleteConfirm} "${transaction.label}" ?',
             style: const TextStyle(color: Color(0xFF8BA8D4))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler',
-                style: TextStyle(color: Color(0xFF8BA8D4))),
+            child: Text(l10n.cancel,
+                style: const TextStyle(color: Color(0xFF8BA8D4))),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF5C7A),
                 foregroundColor: Colors.white),
-            child: const Text('Supprimer'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
     );
     if (confirmed == true) {
       await _transactionService.deleteTransaction(transaction.id);
-      _showSuccess('Transaction supprimée');
+      _showSuccess(l10n.transactionsDeleteSuccess);
     }
   }
 
@@ -214,6 +190,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // écoute les changements de devise pour reconstruire l'UI
+    context.watch<CurrencyProvider>();
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
@@ -224,10 +203,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           displacement: 60,
           child: Column(
             children: [
-              _buildHeader(),
-              _buildSearchBar(),
-              _buildFilterChips(),
-              _buildSummaryRow(),
+              _buildHeader(l10n),
+              _buildSearchBar(l10n),
+              _buildFilterChips(l10n),
+              _buildSummaryRow(l10n),
               Expanded(
                 child: _isLoading
                     ? const Center(
@@ -236,7 +215,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     AlwaysStoppedAnimation(Color(0xFF3EFFA8)),
                   ),
                 )
-                    : _buildList(),
+                    : _buildList(l10n),
               ),
             ],
           ),
@@ -245,21 +224,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Row(
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Transactions',
-                  style: TextStyle(
+              Text(l10n.transactionsTitle,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.w800)),
-              Text('Historique complet',
-                  style: TextStyle(color: Color(0xFF4A6080), fontSize: 13)),
+              Text(l10n.transactionsSubtitle,
+                  style: const TextStyle(color: Color(0xFF4A6080), fontSize: 13)),
             ],
           ),
         ],
@@ -267,7 +246,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: TextField(
@@ -275,7 +254,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         onChanged: (v) => setState(() => _searchQuery = v),
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
-          hintText: 'Rechercher une transaction...',
+          hintText: l10n.transactionsSearch,
           hintStyle:
           const TextStyle(color: Color(0xFF3A5068), fontSize: 14),
           prefixIcon: const Icon(Icons.search_rounded,
@@ -312,8 +291,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildFilterChips() {
-    final filters = ['Tout', 'Dépenses', 'Revenus'];
+  Widget _buildFilterChips(AppLocalizations l10n) {
+    final filters = [l10n.transactionsAll, l10n.transactionsExpenses, l10n.transactionsRevenues];
     final colors = [
       const Color(0xFF8BA8D4),
       const Color(0xFFFF5C7A),
@@ -363,17 +342,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildSummaryRow() {
+  Widget _buildSummaryRow(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
         children: [
-          Text('${_filtered.length} transaction(s)',
+          Text(l10n.transactionsCount(_filtered.length),
               style: const TextStyle(
                   color: Color(0xFF4A6080), fontSize: 12)),
           const Spacer(),
           if (_filterIndex != 1)
-            Text('+${_totalIncome.toStringAsFixed(0)} TND',
+            Text('+${context.read<CurrencyProvider>().format(_totalIncome)}',
                 style: const TextStyle(
                     color: Color(0xFF3EFFA8),
                     fontSize: 12,
@@ -382,7 +361,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             const Text('  ·  ',
                 style: TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
           if (_filterIndex != 2)
-            Text('-${_totalExpense.toStringAsFixed(0)} TND',
+            Text('-${context.read<CurrencyProvider>().format(_totalExpense)}',
                 style: const TextStyle(
                     color: Color(0xFFFF5C7A),
                     fontSize: 12,
@@ -392,7 +371,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(AppLocalizations l10n) {
     final items = _filtered;
     if (items.isEmpty) {
       return Center(
@@ -402,9 +381,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             const Icon(Icons.search_off_rounded,
                 color: Color(0xFF1A2E52), size: 48),
             const SizedBox(height: 12),
-            const Text('Aucune transaction trouvée',
+            Text(l10n.transactionsEmpty,
                 style:
-                TextStyle(color: Color(0xFF4A6080), fontSize: 14)),
+                const TextStyle(color: Color(0xFF4A6080), fontSize: 14)),
           ],
         ),
       );
@@ -416,12 +395,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       itemCount: items.length,
       itemBuilder: (_, i) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: _buildTxCard(items[i]),
+        child: _buildTxCard(items[i], l10n),
       ),
     );
   }
 
-  Widget _buildTxCard(TransactionSnapshot tx) {
+  Widget _buildTxCard(TransactionSnapshot tx, AppLocalizations l10n) {
     final isIncome = tx.isIncome;
     final amountColor =
     isIncome ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A);
@@ -435,7 +414,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) async {
         if (isRevenue) {
-          _showRevenueDeleteHint();
+          _showRevenueDeleteHint(l10n);
           return false; // Bloquer le swipe pour les revenus
         }
         return true;
@@ -491,7 +470,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          tx.label,
+                          CategoryTranslator.resolveLabel(tx.label, tx.category, l10n),
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -512,9 +491,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             border: Border.all(
                                 color: const Color(0xFF3EFFA8).withOpacity(0.3)),
                           ),
-                          child: const Text(
-                            'Revenu',
-                            style: TextStyle(
+                          child: Text(
+                            l10n.transactionsRevenueBadge,
+                            style: const TextStyle(
                                 color: Color(0xFF3EFFA8),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600),
@@ -532,7 +511,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           borderRadius: BorderRadius.circular(6),
                           color: color.withOpacity(0.1),
                         ),
-                        child: Text(tx.category,
+                        child: Text(CategoryTranslator.byStoredName(tx.category, l10n),
                             style: TextStyle(color: color, fontSize: 10)),
                       ),
                       const SizedBox(width: 6),
@@ -559,7 +538,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
             // ── Montant ─────────────────────────────────────
             Text(
-              '$prefix ${tx.amount.toStringAsFixed(2)} TND',
+              '$prefix ${context.read<CurrencyProvider>().format(tx.amount)}',
               style: TextStyle(
                 color: amountColor,
                 fontWeight: FontWeight.w700,
@@ -572,12 +551,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  void _showRevenueDeleteHint() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Supprimez ce revenu depuis la page Revenus.'),
-      backgroundColor: Color(0xFF1A2E52),
+  void _showRevenueDeleteHint(AppLocalizations l10n) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(l10n.transactionsRevenueHint),
+      backgroundColor: const Color(0xFF1A2E52),
       behavior: SnackBarBehavior.floating,
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
     ));
   }
 }

@@ -92,6 +92,40 @@ class ObjectivesViewModel extends ChangeNotifier {
     return null; // no-op pour le moment
   }
 
+  // ── Ajouter un montant à un objectif ─────────────────────
+  Future<String?> addAmountToObjective({
+    required String id,
+    required double amount,
+  }) async {
+    if (amount <= 0) return 'Le montant doit être supérieur à 0.';
+
+    try {
+      final userRef = _firestore.collection('users').doc(_uid);
+      final objRef = _goalsRef.doc(id);
+
+      return await _firestore.runTransaction((tx) async {
+        final userSnap = await tx.get(userRef);
+        final objSnap = await tx.get(objRef);
+
+        if (!objSnap.exists) return 'Objectif introuvable.';
+
+        final data = objSnap.data() as Map<String, dynamic>;
+        final current = (data['currentAmount'] ?? 0).toDouble();
+        final target  = (data['targetAmount']  ?? 0).toDouble();
+
+        final balance = (userSnap.data()?['initialBalance'] ?? 0).toDouble();
+        if (balance < amount) return 'Solde insuffisant (${balance.toStringAsFixed(2)} TND disponibles).';
+
+        final newCurrent = (current + amount).clamp(0.0, target);
+        tx.update(objRef,  {'currentAmount': newCurrent});
+        tx.update(userRef, {'initialBalance': balance - amount});
+        return null;
+      });
+    } catch (e) {
+      return 'Erreur lors de la mise à jour : $e';
+    }
+  }
+
   // ── Supprimer un objectif ──────────────────────────────────
   Future<String?> deleteObjective(String docId) async {
     try {

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:savy/l10n/app_localizations.dart';
 
 import '../../main.dart';
 
@@ -417,52 +418,55 @@ class _SplashScreenState extends State<SplashScreen>
     final fontSize = (size.width * 0.038).clamp(13.0, 20.0);
     return AnimatedBuilder(
       animation: _taglineController,
-      builder: (_, __) => FadeTransition(
-        opacity: _taglineOpacity,
-        child: SlideTransition(
-          position: _taglineSlide,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 28,
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      const Color(0xFF3EFFA8).withOpacity(0.6),
-                    ],
+      builder: (context, __) {
+        final l10n = AppLocalizations.of(context);
+        return FadeTransition(
+          opacity: _taglineOpacity,
+          child: SlideTransition(
+            position: _taglineSlide,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 28,
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF3EFFA8).withOpacity(0.6),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Gérez vos finances, atteignez vos objectifs',
-                style: TextStyle(
-                  fontSize: fontSize,
-                  color: const Color(0xFF8BA8D4),
-                  letterSpacing: 0.5,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                width: 28,
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF3EFFA8).withOpacity(0.6),
-                      Colors.transparent,
-                    ],
+                const SizedBox(width: 10),
+                Text(
+                  l10n.splashTagline,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    color: const Color(0xFF8BA8D4),
+                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Container(
+                  width: 28,
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF3EFFA8).withOpacity(0.6),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

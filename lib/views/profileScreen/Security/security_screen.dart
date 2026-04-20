@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:savy/l10n/app_localizations.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – SECURITY SCREEN
@@ -68,6 +69,7 @@ class _SecurityScreenState extends State<SecurityScreen>
 
   // ── Force du mot de passe ─────────────────────────────────
   void _updateStrength() {
+    final l10n = AppLocalizations.of(context);
     final pass = _newPassCtrl.text;
     double strength = 0;
     if (pass.length >= 8)  strength += 0.25;
@@ -79,11 +81,11 @@ class _SecurityScreenState extends State<SecurityScreen>
 
     String label;
     Color color;
-    if (strength <= 0.25)      { label = 'Très faible'; color = const Color(0xFFFF5C7A); }
-    else if (strength <= 0.50) { label = 'Faible';      color = const Color(0xFFFF8C42); }
-    else if (strength <= 0.75) { label = 'Moyen';       color = const Color(0xFFFFB340); }
-    else if (strength < 1.0)   { label = 'Fort';        color = const Color(0xFF00D4FF); }
-    else                       { label = 'Très fort';   color = const Color(0xFF3EFFA8); }
+    if (strength <= 0.25)      { label = l10n.securityPassStrengthVeryWeak; color = const Color(0xFFFF5C7A); }
+    else if (strength <= 0.50) { label = l10n.securityPassStrengthWeak;     color = const Color(0xFFFF8C42); }
+    else if (strength <= 0.75) { label = l10n.securityPassStrengthMedium;   color = const Color(0xFFFFB340); }
+    else if (strength < 1.0)   { label = l10n.securityPassStrengthStrong;   color = const Color(0xFF00D4FF); }
+    else                       { label = l10n.securityPassStrengthVeryStrong; color = const Color(0xFF3EFFA8); }
 
     setState(() {
       _passStrength      = strength;
@@ -94,6 +96,7 @@ class _SecurityScreenState extends State<SecurityScreen>
 
   // ── Changer le mot de passe ───────────────────────────────
   Future<void> _handleChangePassword() async {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
     setState(() { _isLoading = true; _errorMessage = null; _successMessage = null; });
 
@@ -114,7 +117,7 @@ class _SecurityScreenState extends State<SecurityScreen>
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _successMessage = 'Mot de passe modifié avec succès ✓';
+        _successMessage = l10n.securityPasswordChanged;
         _currentPassCtrl.clear();
         _newPassCtrl.clear();
         _confirmPassCtrl.clear();
@@ -124,23 +127,25 @@ class _SecurityScreenState extends State<SecurityScreen>
     } on FirebaseAuthException catch (e) {
       setState(() { _isLoading = false; _errorMessage = _mapError(e.code); });
     } catch (e) {
-      setState(() { _isLoading = false; _errorMessage = "Une erreur s'est produite"; });
+      setState(() { _isLoading = false; _errorMessage = AppLocalizations.of(context).errorGeneric; });
     }
   }
 
   String _mapError(String code) {
+    final l10n = AppLocalizations.of(context);
     switch (code) {
       case 'wrong-password':
-      case 'invalid-credential':    return 'Mot de passe actuel incorrect';
-      case 'weak-password':         return 'Nouveau mot de passe trop faible';
-      case 'requires-recent-login': return 'Session expirée, reconnectez-vous';
-      case 'too-many-requests':     return 'Trop de tentatives, réessayez plus tard';
-      default: return 'Erreur ($code)';
+      case 'invalid-credential':    return l10n.securityErrorWrongPassword;
+      case 'weak-password':         return l10n.securityErrorWeakPassword;
+      case 'requires-recent-login': return l10n.securityErrorSessionExpired;
+      case 'too-many-requests':     return l10n.securityErrorTooManyRequests;
+      default: return l10n.errorGeneric;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final hPad = size.shortestSide > 600 ? size.width * 0.2 : 20.0;
 
@@ -156,7 +161,7 @@ class _SecurityScreenState extends State<SecurityScreen>
           SafeArea(
             child: Column(
               children: [
-                _buildTopBar(context),
+                _buildTopBar(context, l10n),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -165,26 +170,26 @@ class _SecurityScreenState extends State<SecurityScreen>
                       children: [
                         // ── Bloc Google Only ─────────────
                         if (_isGoogleOnly)
-                          _buildGoogleOnlyCard()
+                          _buildGoogleOnlyCard(l10n)
                         else ...[
-                          _sectionTitle('Changer le mot de passe'),
+                          _sectionTitle(l10n.securityChangePassword),
                           const SizedBox(height: 12),
-                          _buildPasswordForm(),
+                          _buildPasswordForm(l10n),
                         ],
 
                         const SizedBox(height: 24),
 
                         // ── Conseils sécurité ────────────
-                        _sectionTitle('Conseils de sécurité'),
+                        _sectionTitle(l10n.securityTips),
                         const SizedBox(height: 12),
-                        _buildSecurityTips(),
+                        _buildSecurityTips(l10n),
 
                         const SizedBox(height: 24),
 
                         // ── Infos compte ─────────────────
-                        _sectionTitle('Informations du compte'),
+                        _sectionTitle(l10n.securityAccountInfo),
                         const SizedBox(height: 12),
-                        _buildAccountInfo(),
+                        _buildAccountInfo(l10n),
                       ],
                     ),
                   ),
@@ -198,7 +203,7 @@ class _SecurityScreenState extends State<SecurityScreen>
   }
 
   // ── Top Bar ───────────────────────────────────────────────
-  Widget _buildTopBar(BuildContext context) => Padding(
+  Widget _buildTopBar(BuildContext context, AppLocalizations l10n) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Row(children: [
       GestureDetector(
@@ -212,8 +217,8 @@ class _SecurityScreenState extends State<SecurityScreen>
       ShaderMask(
         shaderCallback: (b) => const LinearGradient(
             colors: [Color(0xFF7B61FF), Color(0xFF00D4FF)]).createShader(b),
-        child: const Text('Sécurité',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+        child: Text(l10n.securityTitle,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
       ),
       const Spacer(),
       Container(
@@ -229,7 +234,7 @@ class _SecurityScreenState extends State<SecurityScreen>
   );
 
   // ── Google Only card ──────────────────────────────────────
-  Widget _buildGoogleOnlyCard() => Container(
+  Widget _buildGoogleOnlyCard(AppLocalizations l10n) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(20),
@@ -243,14 +248,14 @@ class _SecurityScreenState extends State<SecurityScreen>
             decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF00D4FF).withOpacity(0.12)),
             child: const Icon(Icons.info_outline_rounded, color: Color(0xFF00D4FF), size: 20)),
         const SizedBox(width: 14),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Connecté via Google', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
-              SizedBox(height: 4),
-              Text('Votre compte utilise Google Sign-In. La gestion du mot de passe se fait depuis votre compte Google.',
-                  style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 12, height: 1.5)),
+              Text(l10n.securityGoogleOnlyTitle, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(l10n.securityGoogleOnlyDesc,
+                  style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 12, height: 1.5)),
             ],
           ),
         ),
@@ -259,7 +264,7 @@ class _SecurityScreenState extends State<SecurityScreen>
   );
 
   // ── Password Form ─────────────────────────────────────────
-  Widget _buildPasswordForm() {
+  Widget _buildPasswordForm(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -273,23 +278,23 @@ class _SecurityScreenState extends State<SecurityScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _field(
-              label: 'Mot de passe actuel',
+              label: l10n.securityCurrentPassword,
               controller: _currentPassCtrl,
               icon: Icons.lock_outline_rounded,
               obscure: _obscureCurrent,
               eyeToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
-              validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
+              validator: (v) => (v == null || v.isEmpty) ? l10n.errorRequired : null,
             ),
             const SizedBox(height: 16),
             _field(
-              label: 'Nouveau mot de passe',
+              label: l10n.securityNewPassword,
               controller: _newPassCtrl,
               icon: Icons.lock_open_rounded,
               obscure: _obscureNew,
               eyeToggle: () => setState(() => _obscureNew = !_obscureNew),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Requis';
-                if (v.length < 6) return 'Minimum 6 caractères';
+                if (v == null || v.isEmpty) return l10n.errorRequired;
+                if (v.length < 6) return l10n.securityErrorPasswordTooShort;
                 return null;
               },
             ),
@@ -318,14 +323,14 @@ class _SecurityScreenState extends State<SecurityScreen>
             ],
             const SizedBox(height: 16),
             _field(
-              label: 'Confirmer le mot de passe',
+              label: l10n.securityConfirmPassword,
               controller: _confirmPassCtrl,
               icon: Icons.lock_rounded,
               obscure: _obscureConfirm,
               eyeToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Requis';
-                if (v != _newPassCtrl.text) return 'Les mots de passe ne correspondent pas';
+                if (v == null || v.isEmpty) return l10n.errorRequired;
+                if (v != _newPassCtrl.text) return l10n.securityErrorPasswordMismatch;
                 return null;
               },
             ),
@@ -337,7 +342,7 @@ class _SecurityScreenState extends State<SecurityScreen>
             if (_errorMessage != null || _successMessage != null) const SizedBox(height: 8),
 
             // Bouton
-            _buildSaveButton(),
+            _buildSaveButton(l10n),
           ],
         ),
       ),
@@ -345,37 +350,37 @@ class _SecurityScreenState extends State<SecurityScreen>
   }
 
   // ── Security Tips ─────────────────────────────────────────
-  Widget _buildSecurityTips() {
+  Widget _buildSecurityTips(AppLocalizations l10n) {
     final tips = [
       _SecurityTip(
         icon: Icons.lock_rounded,
         color: const Color(0xFF3EFFA8),
-        title: 'Mot de passe fort',
-        desc: 'Utilisez au moins 12 caractères avec des majuscules, chiffres et symboles.',
+        title: l10n.securityTipStrongTitle,
+        desc: l10n.securityTipStrongDesc,
       ),
       _SecurityTip(
         icon: Icons.visibility_off_rounded,
         color: const Color(0xFF00D4FF),
-        title: 'Ne partagez jamais',
-        desc: 'Ne communiquez jamais votre mot de passe, même à Savy.',
+        title: l10n.securityTipNeverShareTitle,
+        desc: l10n.securityTipNeverShareDesc,
       ),
       _SecurityTip(
         icon: Icons.refresh_rounded,
         color: const Color(0xFFFFB340),
-        title: 'Changez régulièrement',
-        desc: 'Modifiez votre mot de passe tous les 3 à 6 mois pour plus de sécurité.',
+        title: l10n.securityTipChangeRegularlyTitle,
+        desc: l10n.securityTipChangeRegularlyDesc,
       ),
       _SecurityTip(
         icon: Icons.devices_rounded,
         color: const Color(0xFF7B61FF),
-        title: 'Appareils de confiance',
-        desc: 'Évitez de vous connecter depuis des appareils publics ou partagés.',
+        title: l10n.securityTipTrustedDevicesTitle,
+        desc: l10n.securityTipTrustedDevicesDesc,
       ),
       _SecurityTip(
         icon: Icons.email_rounded,
         color: const Color(0xFF3EFFA8),
-        title: 'Email vérifié',
-        desc: 'Gardez votre email à jour pour récupérer votre compte en cas de besoin.',
+        title: l10n.securityTipVerifiedEmailTitle,
+        desc: l10n.securityTipVerifiedEmailDesc,
       ),
     ];
 
@@ -424,7 +429,7 @@ class _SecurityScreenState extends State<SecurityScreen>
   }
 
   // ── Account Info ──────────────────────────────────────────
-  Widget _buildAccountInfo() {
+  Widget _buildAccountInfo(AppLocalizations l10n) {
     final user = FirebaseAuth.instance.currentUser;
     final isVerified = user?.emailVerified ?? false;
 
@@ -437,22 +442,22 @@ class _SecurityScreenState extends State<SecurityScreen>
       ),
       child: Column(
         children: [
-          _infoRow('Email', user?.email ?? '-',
+          _infoRow(l10n.securityEmail, user?.email ?? '-',
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: (isVerified ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A)).withOpacity(0.12),
                 ),
-                child: Text(isVerified ? 'Vérifié ✓' : 'Non vérifié',
+                child: Text(isVerified ? l10n.securityEmailVerified : l10n.securityEmailNotVerified,
                     style: TextStyle(color: isVerified ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A), fontSize: 11, fontWeight: FontWeight.w600)),
               )),
           Divider(height: 1, indent: 0, color: const Color(0xFF1A2E52).withOpacity(0.4)),
-          _infoRow('Méthode de connexion',
-              _providers.contains('google.com') ? 'Google' : 'Email / Mot de passe',
+          _infoRow(l10n.securityLoginMethod,
+              _providers.contains('google.com') ? l10n.securityLoginGoogle : l10n.securityLoginEmailPassword,
               icon: _providers.contains('google.com') ? Icons.g_mobiledata_rounded : Icons.email_rounded),
           Divider(height: 1, indent: 0, color: const Color(0xFF1A2E52).withOpacity(0.4)),
-          _infoRow('UID', '${user?.uid.substring(0, 8)}...', isSmall: true),
+          _infoRow(l10n.securityUid, '${user?.uid.substring(0, 8)}...', isSmall: true),
         ],
       ),
     );
@@ -539,7 +544,7 @@ class _SecurityScreenState extends State<SecurityScreen>
     );
   }
 
-  Widget _buildSaveButton() => SizedBox(
+  Widget _buildSaveButton(AppLocalizations l10n) => SizedBox(
     width: double.infinity, height: 52,
     child: _isLoading
         ? Container(
@@ -557,8 +562,8 @@ class _SecurityScreenState extends State<SecurityScreen>
         onPressed: _handleChangePassword,
         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-        child: const Text('Changer le mot de passe',
-            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+        child: Text(l10n.securityChangePassword,
+            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
       ),
     ),
   );

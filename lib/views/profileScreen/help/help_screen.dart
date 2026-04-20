@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../models/faq_models.dart';
 import '../../../services/emailjs_service.dart';
 
@@ -26,22 +27,15 @@ class _HelpScreenState extends State<HelpScreen>
   late final AnimationController _bgController;
   late final Animation<double> _bgAnim;
 
-  // Copie mutable des données FAQ
-  late final List<FaqCategory> _categories;
+  // Expansion state: _expanded[categoryIndex][itemIndex]
+  // Structure matches faqDataFor() which always has 5 cats with fixed item counts.
+  late List<List<bool>> _expanded;
 
   @override
   void initState() {
     super.initState();
-    // Copie pour permettre l'expansion
-    _categories = faqData.map((cat) => FaqCategory(
-      title: cat.title,
-      iconName: cat.iconName,
-      colorValue: cat.colorValue,
-      items: cat.items.map((item) => FaqItem(
-        question: item.question,
-        answer: item.answer,
-      )).toList(),
-    )).toList();
+    final base = faqDataFor('fr');
+    _expanded = base.map((cat) => List.filled(cat.items.length, false)).toList();
 
     _bgController = AnimationController(
         vsync: this, duration: const Duration(seconds: 8))..repeat(reverse: true);
@@ -53,6 +47,29 @@ class _HelpScreenState extends State<HelpScreen>
     _bgController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Build locale-aware categories with preserved expansion state ──
+  List<FaqCategory> _buildCategories(String locale) {
+    final raw = faqDataFor(locale);
+    return List.generate(raw.length, (ci) {
+      final cat = raw[ci];
+      return FaqCategory(
+        title: cat.title,
+        iconName: cat.iconName,
+        colorValue: cat.colorValue,
+        items: List.generate(cat.items.length, (ii) {
+          final expanded = ci < _expanded.length && ii < _expanded[ci].length
+              ? _expanded[ci][ii]
+              : false;
+          return FaqItem(
+            question: cat.items[ii].question,
+            answer: cat.items[ii].answer,
+            isExpanded: expanded,
+          );
+        }),
+      );
+    });
   }
 
   // ── Icon mapping ──────────────────────────────────────────
@@ -70,12 +87,12 @@ class _HelpScreenState extends State<HelpScreen>
     return map[name] ?? Icons.help_outline_rounded;
   }
 
-  // ── Filtrage de la recherche ──────────────────────────────
-  List<FaqItem> get _searchResults {
+  // ── Search filtering ──────────────────────────────────────
+  List<FaqItem> _searchResults(List<FaqCategory> categories) {
     if (_searchQuery.isEmpty) return [];
     final query = _searchQuery.toLowerCase();
     final results = <FaqItem>[];
-    for (final cat in _categories) {
+    for (final cat in categories) {
       for (final item in cat.items) {
         if (item.question.toLowerCase().contains(query) ||
             item.answer.toLowerCase().contains(query)) {
@@ -88,6 +105,9 @@ class _HelpScreenState extends State<HelpScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).languageCode;
+    final categories = _buildCategories(locale);
     final size = MediaQuery.of(context).size;
     final hPad = size.shortestSide > 600 ? size.width * 0.2 : 20.0;
 
@@ -104,7 +124,7 @@ class _HelpScreenState extends State<HelpScreen>
           SafeArea(
             child: Column(
               children: [
-                _buildTopBar(context),
+                _buildTopBar(context, l10n),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -112,30 +132,21 @@ class _HelpScreenState extends State<HelpScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ── Search bar ───────────────────
-                        _buildSearchBar(),
+                        _buildSearchBar(l10n),
                         const SizedBox(height: 24),
 
-                        // ── Résultats de recherche ───────
                         if (_searchQuery.isNotEmpty) ...[
-                          _buildSearchResults(),
+                          _buildSearchResults(categories, l10n),
                         ] else ...[
-                          // ── Catégories chips ─────────
-                          _buildCategoryChips(),
+                          _buildCategoryChips(categories, l10n),
                           const SizedBox(height: 20),
-
-                          // ── FAQ list ─────────────────
-                          _buildFaqList(),
+                          _buildFaqList(categories),
                           const SizedBox(height: 28),
-
-                          // ── Contact section ──────────
-                          _buildSectionTitle('Nous contacter'),
+                          _buildSectionTitle(l10n.helpContact),
                           const SizedBox(height: 12),
-                          _buildContactSection(),
+                          _buildContactSection(l10n),
                           const SizedBox(height: 28),
-
-                          // ── Version ──────────────────
-                          _buildVersionCard(),
+                          _buildVersionCard(l10n),
                         ],
                       ],
                     ),
@@ -150,7 +161,7 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   // ── Top Bar ───────────────────────────────────────────────
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(BuildContext context, AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
@@ -172,8 +183,8 @@ class _HelpScreenState extends State<HelpScreen>
           ShaderMask(
             shaderCallback: (b) => const LinearGradient(
                 colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-            child: const Text('Aide & FAQ',
-                style: TextStyle(color: Colors.white, fontSize: 18,
+            child: Text(l10n.helpScreenTitle,
+                style: const TextStyle(color: Colors.white, fontSize: 18,
                     fontWeight: FontWeight.w800)),
           ),
           const Spacer(),
@@ -194,13 +205,13 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   // ── Search Bar ────────────────────────────────────────────
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(AppLocalizations l10n) {
     return TextField(
       controller: _searchCtrl,
       onChanged: (v) => setState(() => _searchQuery = v),
       style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
-        hintText: 'Rechercher dans l\'aide...',
+        hintText: l10n.helpSearchHint,
         hintStyle: const TextStyle(color: Color(0xFF3A5068), fontSize: 14),
         prefixIcon: const Icon(Icons.search_rounded,
             color: Color(0xFF4A6080), size: 20),
@@ -235,8 +246,8 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   // ── Search Results ────────────────────────────────────────
-  Widget _buildSearchResults() {
-    final results = _searchResults;
+  Widget _buildSearchResults(List<FaqCategory> categories, AppLocalizations l10n) {
+    final results = _searchResults(categories);
     if (results.isEmpty) {
       return Center(
         child: Padding(
@@ -246,12 +257,12 @@ class _HelpScreenState extends State<HelpScreen>
               Icon(Icons.search_off_rounded,
                   color: const Color(0xFF1A2E52), size: 52),
               const SizedBox(height: 12),
-              Text('Aucun résultat pour "$_searchQuery"',
+              Text('${l10n.helpSearchNoResults} "$_searchQuery"',
                   style: const TextStyle(
                       color: Color(0xFF4A6080), fontSize: 14)),
               const SizedBox(height: 8),
-              const Text('Essayez d\'autres mots-clés',
-                  style: TextStyle(color: Color(0xFF3A5070), fontSize: 12)),
+              Text(l10n.helpSearchTryOther,
+                  style: const TextStyle(color: Color(0xFF3A5070), fontSize: 12)),
             ],
           ),
         ),
@@ -261,35 +272,34 @@ class _HelpScreenState extends State<HelpScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('${results.length} résultat(s) pour "$_searchQuery"',
+        Text('${results.length} — "$_searchQuery"',
             style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 12)),
         const SizedBox(height: 12),
         ...results.map((item) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
-          child: _buildFaqTile(item, const Color(0xFF3EFFA8)),
+          child: _buildFaqTile(item, const Color(0xFF3EFFA8), 0, 0),
         )),
       ],
     );
   }
 
   // ── Category Chips ────────────────────────────────────────
-  Widget _buildCategoryChips() {
+  Widget _buildCategoryChips(List<FaqCategory> categories, AppLocalizations l10n) {
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: _categories.length + 1,
+        itemCount: categories.length + 1,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           if (i == 0) {
-            // Chip "Tous"
             final isSelected = _selectedCategoryIndex == null;
-            return _chip('Tous', Icons.apps_rounded,
+            return _chip(l10n.helpChipAll, Icons.apps_rounded,
                 const Color(0xFF3EFFA8), isSelected, () {
                   setState(() => _selectedCategoryIndex = null);
                 });
           }
-          final cat = _categories[i - 1];
+          final cat = categories[i - 1];
           final isSelected = _selectedCategoryIndex == i - 1;
           return _chip(cat.title, _iconFromName(cat.iconName),
               Color(cat.colorValue), isSelected, () {
@@ -330,20 +340,22 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   // ── FAQ List ──────────────────────────────────────────────
-  Widget _buildFaqList() {
+  Widget _buildFaqList(List<FaqCategory> categories) {
     final cats = _selectedCategoryIndex != null
-        ? [_categories[_selectedCategoryIndex!]]
-        : _categories;
+        ? [categories[_selectedCategoryIndex!]]
+        : categories;
+    final catOffset = _selectedCategoryIndex ?? 0;
 
     return Column(
-      children: cats.map((cat) {
+      children: List.generate(cats.length, (idx) {
+        final ci = (_selectedCategoryIndex != null) ? _selectedCategoryIndex! : idx;
+        final cat = cats[idx];
         final color = Color(cat.colorValue);
         return Padding(
           padding: const EdgeInsets.only(bottom: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Category header
               Row(
                 children: [
                   Container(
@@ -371,7 +383,6 @@ class _HelpScreenState extends State<HelpScreen>
                 ],
               ),
               const SizedBox(height: 10),
-              // FAQ items
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
@@ -380,12 +391,12 @@ class _HelpScreenState extends State<HelpScreen>
                       color: const Color(0xFF1A2E52).withOpacity(0.6)),
                 ),
                 child: Column(
-                  children: List.generate(cat.items.length, (i) {
-                    final item = cat.items[i];
-                    final isLast = i == cat.items.length - 1;
+                  children: List.generate(cat.items.length, (ii) {
+                    final item = cat.items[ii];
+                    final isLast = ii == cat.items.length - 1;
                     return Column(
                       children: [
-                        _buildFaqTile(item, color),
+                        _buildFaqTile(item, color, ci, ii),
                         if (!isLast)
                           Divider(height: 1, indent: 16,
                               color: const Color(0xFF1A2E52).withOpacity(0.4)),
@@ -397,11 +408,11 @@ class _HelpScreenState extends State<HelpScreen>
             ],
           ),
         );
-      }).toList(),
+      }),
     );
   }
 
-  Widget _buildFaqTile(FaqItem item, Color color) {
+  Widget _buildFaqTile(FaqItem item, Color color, int ci, int ii) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
@@ -442,8 +453,13 @@ class _HelpScreenState extends State<HelpScreen>
             ),
           ),
           trailing: const SizedBox.shrink(),
-          onExpansionChanged: (val) =>
-              setState(() => item.isExpanded = val),
+          onExpansionChanged: (val) {
+            setState(() {
+              if (ci < _expanded.length && ii < _expanded[ci].length) {
+                _expanded[ci][ii] = val;
+              }
+            });
+          },
           children: [
             Container(
               width: double.infinity,
@@ -469,7 +485,7 @@ class _HelpScreenState extends State<HelpScreen>
   }
 
   // ── Contact Section ───────────────────────────────────────
-  Widget _buildContactSection() {
+  Widget _buildContactSection(AppLocalizations l10n) {
     final filteredOptions = contactOptions.where((opt) =>
     opt.action != 'report_bug' &&
         opt.action != 'rate_app'
@@ -490,7 +506,7 @@ class _HelpScreenState extends State<HelpScreen>
           return Column(
             children: [
               GestureDetector(
-                onTap: () => _handleContact(opt.action),
+                onTap: () => _handleContact(opt.action, l10n),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -541,14 +557,12 @@ class _HelpScreenState extends State<HelpScreen>
     );
   }
 
-  void _handleContact(String action) {
-    // Tous les cas redirigent vers le support email
-    _showEmailSupportDialog();
+  void _handleContact(String action, AppLocalizations l10n) {
+    _showEmailSupportDialog(l10n);
   }
 
-
   // ── Email support dialog ──────────────────────────────────
-  void _showEmailSupportDialog() {
+  void _showEmailSupportDialog(AppLocalizations l10n) {
     final subjectCtrl = TextEditingController();
     final messageCtrl = TextEditingController();
     bool isSending = false;
@@ -569,7 +583,6 @@ class _HelpScreenState extends State<HelpScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   children: [
                     Container(
@@ -582,13 +595,13 @@ class _HelpScreenState extends State<HelpScreen>
                           color: Color(0xFF3EFFA8), size: 20),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Contacter le support',
-                            style: TextStyle(color: Colors.white,
+                        Text(l10n.helpContactDialogTitle,
+                            style: const TextStyle(color: Colors.white,
                                 fontSize: 15, fontWeight: FontWeight.w800)),
-                        Text('support@savy.app',
+                        const Text('support@savy.app',
                             style: TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
                       ],
                     ),
@@ -596,16 +609,15 @@ class _HelpScreenState extends State<HelpScreen>
                 ),
                 const SizedBox(height: 20),
 
-                // Sujet
-                const Text('Sujet',
-                    style: TextStyle(color: Color(0xFF8BA8D4),
+                Text(l10n.helpContactSubject,
+                    style: const TextStyle(color: Color(0xFF8BA8D4),
                         fontSize: 12, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: subjectCtrl,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Ex: Problème avec mon budget...',
+                    hintText: l10n.helpContactSubjectHint,
                     hintStyle: const TextStyle(color: Color(0xFF3A5068), fontSize: 13),
                     filled: true,
                     fillColor: const Color(0xFF0D1B38),
@@ -623,9 +635,8 @@ class _HelpScreenState extends State<HelpScreen>
                 ),
                 const SizedBox(height: 14),
 
-                // Message
-                const Text('Message',
-                    style: TextStyle(color: Color(0xFF8BA8D4),
+                Text(l10n.helpContactMessage,
+                    style: const TextStyle(color: Color(0xFF8BA8D4),
                         fontSize: 12, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 TextField(
@@ -633,7 +644,7 @@ class _HelpScreenState extends State<HelpScreen>
                   maxLines: 5,
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: InputDecoration(
-                    hintText: 'Décrivez votre problème ou réclamation en détail...',
+                    hintText: l10n.helpContactMessageHint,
                     hintStyle: const TextStyle(color: Color(0xFF3A5068), fontSize: 13),
                     filled: true,
                     fillColor: const Color(0xFF0D1B38),
@@ -651,7 +662,6 @@ class _HelpScreenState extends State<HelpScreen>
                 ),
                 const SizedBox(height: 20),
 
-                // Boutons
                 Row(
                   children: [
                     Expanded(
@@ -663,8 +673,8 @@ class _HelpScreenState extends State<HelpScreen>
                               borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: const Text('Annuler',
-                            style: TextStyle(color: Color(0xFF8BA8D4),
+                        child: Text(l10n.cancel,
+                            style: const TextStyle(color: Color(0xFF8BA8D4),
                                 fontWeight: FontWeight.w600)),
                       ),
                     ),
@@ -688,10 +698,10 @@ class _HelpScreenState extends State<HelpScreen>
 
                             if (subject.isEmpty || message.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Veuillez remplir tous les champs',
-                                      style: TextStyle(color: Colors.white)),
-                                  backgroundColor: Color(0xFFFF5C7A),
+                                SnackBar(
+                                  content: Text(l10n.helpContactFillAll,
+                                      style: const TextStyle(color: Colors.white)),
+                                  backgroundColor: const Color(0xFFFF5C7A),
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
@@ -700,12 +710,10 @@ class _HelpScreenState extends State<HelpScreen>
 
                             setDialogState(() => isSending = true);
 
-                            // Récupère les infos Firebase de l'utilisateur
                             final user = FirebaseAuth.instance.currentUser;
                             final userName  = user?.displayName ?? 'Utilisateur Savy';
                             final userEmail = user?.email ?? 'email inconnu';
 
-                            // Envoi via EmailJS
                             final result = await EmailJSService.sendEmail(
                               userName:  userName,
                               userEmail: userEmail,
@@ -717,13 +725,13 @@ class _HelpScreenState extends State<HelpScreen>
 
                             if (result.isSuccess) {
                               Navigator.pop(dialogContext);
-                              _showConfirmationDialog();
+                              _showConfirmationDialog(l10n);
                             } else {
                               setDialogState(() => isSending = false);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      result.errorMessage ?? "Erreur lors de l'envoi",
+                                      result.errorMessage ?? l10n.errorGeneric,
                                       style: const TextStyle(color: Colors.white)),
                                   backgroundColor: const Color(0xFFFF5C7A),
                                   behavior: SnackBarBehavior.floating,
@@ -744,8 +752,8 @@ class _HelpScreenState extends State<HelpScreen>
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation(Color(0xFF060D1F)),
                               ))
-                              : const Text('Envoyer',
-                              style: TextStyle(color: Color(0xFF060D1F),
+                              : Text(l10n.helpContactSend,
+                              style: const TextStyle(color: Color(0xFF060D1F),
                                   fontWeight: FontWeight.w700, fontSize: 14)),
                         ),
                       ),
@@ -760,8 +768,8 @@ class _HelpScreenState extends State<HelpScreen>
     );
   }
 
-  // ── Confirmation dialog après envoi ──────────────────────
-  void _showConfirmationDialog() {
+  // ── Confirmation dialog ───────────────────────────────────
+  void _showConfirmationDialog(AppLocalizations l10n) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -775,7 +783,6 @@ class _HelpScreenState extends State<HelpScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icône succès animée
               Container(
                 width: 70, height: 70,
                 decoration: BoxDecoration(
@@ -795,16 +802,16 @@ class _HelpScreenState extends State<HelpScreen>
               ShaderMask(
                 shaderCallback: (b) => const LinearGradient(
                     colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-                child: const Text('Message envoyé !',
-                    style: TextStyle(color: Colors.white,
+                child: Text(l10n.helpContactSuccessTitle,
+                    style: const TextStyle(color: Colors.white,
                         fontSize: 18, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 10),
 
-              const Text(
-                'Votre message a bien été envoyé à notre équipe. Nous vous répondrons dans les plus brefs délais.',
+              Text(
+                l10n.helpContactSuccessBody,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B8CAE),
+                style: const TextStyle(color: Color(0xFF6B8CAE),
                     fontSize: 13, height: 1.6),
               ),
               const SizedBox(height: 8),
@@ -839,8 +846,8 @@ class _HelpScreenState extends State<HelpScreen>
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Parfait !',
-                        style: TextStyle(color: Color(0xFF060D1F),
+                    child: Text(l10n.helpContactSuccessBtn,
+                        style: const TextStyle(color: Color(0xFF060D1F),
                             fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
                 ),
@@ -852,9 +859,8 @@ class _HelpScreenState extends State<HelpScreen>
     );
   }
 
-
   // ── Version card ──────────────────────────────────────────
-  Widget _buildVersionCard() {
+  Widget _buildVersionCard(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -879,12 +885,12 @@ class _HelpScreenState extends State<HelpScreen>
                     fontWeight: FontWeight.w800, letterSpacing: 1)),
           ),
           const SizedBox(height: 4),
-          const Text('Version 1.0.0',
-              style: TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+          Text('${l10n.helpVersion} 1.0.0',
+              style: const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
           const SizedBox(height: 8),
-          const Text('Application de gestion budgétaire pour étudiants',
+          Text(l10n.helpVersionDesc,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 11, height: 1.4)),
+              style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 11, height: 1.4)),
         ],
       ),
     );

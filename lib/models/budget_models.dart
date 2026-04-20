@@ -4,13 +4,15 @@
 // ══════════════════════════════════════════════════════════════
 
 class BudgetCategory {
+  final String id;          // ← AJOUTÉ : identifiant unique Firestore
   final String name;
   final double spent;
   final double budget;
-  final String iconName; // on stocke le nom pour Firestore
-  final int colorValue;  // on stocke la valeur hex pour Firestore
+  final String iconName;    // nom de l'icône pour Firestore
+  final int colorValue;     // valeur hexadécimale pour Firestore
 
   const BudgetCategory({
+    required this.id,
     required this.name,
     required this.spent,
     required this.budget,
@@ -23,8 +25,10 @@ class BudgetCategory {
   bool get isOver => spent > budget;
 
   // ── Firestore ─────────────────────────────────────────────
-  factory BudgetCategory.fromMap(Map<String, dynamic> map) {
+  // La méthode fromMap reçoit maintenant l'id du document en premier paramètre
+  factory BudgetCategory.fromMap(String id, Map<String, dynamic> map) {
     return BudgetCategory(
+      id: id,
       name: map['name'] ?? '',
       spent: (map['spent'] ?? 0).toDouble(),
       budget: (map['budget'] ?? 0).toDouble(),
@@ -44,6 +48,7 @@ class BudgetCategory {
   }
 
   BudgetCategory copyWith({
+    String? id,
     String? name,
     double? spent,
     double? budget,
@@ -51,6 +56,7 @@ class BudgetCategory {
     int? colorValue,
   }) {
     return BudgetCategory(
+      id: id ?? this.id,
       name: name ?? this.name,
       spent: spent ?? this.spent,
       budget: budget ?? this.budget,
@@ -60,6 +66,8 @@ class BudgetCategory {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  REVENUES – inchangé
 // ─────────────────────────────────────────────────────────────
 
 class RevenueSource {
@@ -107,6 +115,8 @@ class RevenueSource {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  BUDGET SUMMARY – inchangé
 // ─────────────────────────────────────────────────────────────
 
 class BudgetSummary {

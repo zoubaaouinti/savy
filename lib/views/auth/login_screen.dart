@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
+import 'package:savy/providers/language_provider.dart';
 import '../legalScreen/legal_screens.dart';
 import '../../services/auth_service.dart';
 
@@ -69,6 +73,58 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // ── Language Picker ───────────────────────────────────────
+  void _showLanguagePicker(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B1535),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.langPickerTitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ...LanguageProvider.supportedLanguages.map((lang) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Text(lang.flag,
+                      style: const TextStyle(fontSize: 26)),
+                  title: Text(
+                    lang.nativeLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    context.read<LanguageProvider>().setLocale(lang.code);
+                    Navigator.of(sheetContext).pop();
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // ── Connexion Email ───────────────────────────────────────
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -86,9 +142,7 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = false);
 
     if (result.isSuccess) {
-      // ✅ Email vérifié → accès à l'app
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil('/home', (route) => false);
+      await _navigateAfterLogin(result.user?.uid);
     } else if (result.isEmailNotVerified) {
       // 📧 Email pas encore vérifié → affiche le dialog
       _showVerificationDialog();
@@ -99,6 +153,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ── Dialog : email non vérifié ────────────────────────────
   void _showVerificationDialog() {
+    final l10n = AppLocalizations.of(context);
     // Cooldown pour éviter le spam
     int _cooldown = 0;
 
@@ -146,9 +201,9 @@ class _LoginScreenState extends State<LoginScreen>
                   const SizedBox(height: 20),
 
                   // ── Titre ────────────────────────────────
-                  const Text(
-                    'Vérifiez votre email',
-                    style: TextStyle(
+                  Text(
+                    l10n.loginVerifyEmailTitle,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -165,8 +220,8 @@ class _LoginScreenState extends State<LoginScreen>
                           fontSize: 13,
                           height: 1.6),
                       children: [
-                        const TextSpan(
-                            text: 'Un email de vérification a été envoyé à\n'),
+                        TextSpan(
+                            text: '${l10n.loginVerifyEmailMessage}\n'),
                         TextSpan(
                           text: _emailCtrl.text,
                           style: const TextStyle(
@@ -200,9 +255,9 @@ class _LoginScreenState extends State<LoginScreen>
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: const Text(
-                          'J\'ai vérifié mon email',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.loginVerifyEmailDone,
+                          style: const TextStyle(
                               color: Color(0xFF060D1F),
                               fontWeight: FontWeight.w700),
                         ),
@@ -258,8 +313,8 @@ class _LoginScreenState extends State<LoginScreen>
                           const SizedBox(width: 8),
                           Text(
                             _cooldown > 0
-                                ? 'Renvoyer dans ${_cooldown}s'
-                                : 'Renvoyer l\'email',
+                                ? l10n.loginVerifyEmailCooldown(_cooldown)
+                                : l10n.loginVerifyEmailResend,
                             style: TextStyle(
                               color: _cooldown > 0
                                   ? const Color(0xFF3A5070)
@@ -303,19 +358,39 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = false);
 
     if (result.isSuccess) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil('/home', (route) => false);
+      await _navigateAfterLogin(result.user?.uid);
     } else {
       setState(() => _errorMessage = result.errorMessage);
     }
   }
 
+  Future<void> _navigateAfterLogin(String? uid) async {
+    if (!mounted) return;
+    if (uid == null) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
+      return;
+    }
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!mounted) return;
+    final onboardingDone = doc.exists && doc.data()?['onboardingDone'] == true;
+    if (onboardingDone) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
+    } else {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/onboarding', (r) => false);
+    }
+  }
+
   // ── Mot de passe oublié ───────────────────────────────────
   Future<void> _handleForgotPassword() async {
+    final l10n = AppLocalizations.of(context);
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
       setState(() =>
-      _errorMessage = 'Entrez votre email pour réinitialiser');
+      _errorMessage = l10n.forgotPasswordSubtitle);
       return;
     }
 
@@ -327,8 +402,8 @@ class _LoginScreenState extends State<LoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       _buildSnackBar(
         result.isSuccess
-            ? result.message ?? 'Email envoyé'
-            : result.errorMessage ?? 'Erreur',
+            ? result.message ?? l10n.forgotPasswordSuccess
+            : result.errorMessage ?? l10n.errorGeneric,
         isError: !result.isSuccess,
       ),
     );
@@ -336,6 +411,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide > 600;
     final hPad = isTablet ? size.width * 0.2 : 24.0;
@@ -352,6 +428,38 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           CustomPaint(size: size, painter: _GridPainter()),
+          // ── Language picker button ─────────────────────────
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12, right: 16),
+                child: GestureDetector(
+                  onTap: () => _showLanguagePicker(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: const Color(0xFF0D1B38).withOpacity(0.85),
+                      border: Border.all(
+                          color: const Color(0xFF1A2E52), width: 1),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.language_rounded,
+                            color: Color(0xFF3EFFA8), size: 16),
+                        SizedBox(width: 6),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF8BA8D4), size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: AnimatedBuilder(
               animation: _entranceController,
@@ -368,15 +476,15 @@ class _LoginScreenState extends State<LoginScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(height: size.height * 0.07),
-                      _buildHeader(size),
+                      _buildHeader(size, l10n),
                       SizedBox(height: size.height * 0.055),
                       ScaleTransition(
                         scale: _cardScale,
-                        child: _buildCard(size),
+                        child: _buildCard(size, l10n),
                       ),
                       SizedBox(height: size.height * 0.02),
                       SizedBox(height: size.height * 0.02),
-                      _buildSignUpLink(size),
+                      _buildSignUpLink(size, l10n),
                       SizedBox(height: size.height * 0.04),
                     ],
                   ),
@@ -389,7 +497,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildHeader(Size size) {
+  Widget _buildHeader(Size size, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -419,7 +527,7 @@ class _LoginScreenState extends State<LoginScreen>
             colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
           ).createShader(b),
           child: Text(
-            'Bon retour !',
+            l10n.loginWelcome,
             style: TextStyle(
               fontSize: (size.width * 0.08).clamp(28.0, 48.0),
               fontWeight: FontWeight.w800,
@@ -431,7 +539,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Connectez-vous pour gérer vos finances',
+          l10n.loginSubtitle,
           style: TextStyle(
             fontSize: (size.width * 0.038).clamp(13.0, 18.0),
             color: const Color(0xFF6B8CAE),
@@ -441,7 +549,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildCard(Size size) {
+  Widget _buildCard(Size size, AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(28),
@@ -466,28 +574,28 @@ class _LoginScreenState extends State<LoginScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLabel('Adresse email'),
+          _buildLabel(l10n.loginEmailLabel),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _emailCtrl,
-            hint: 'votre@email.com',
+            hint: l10n.loginEmailHint,
             icon: Icons.alternate_email_rounded,
             keyboardType: TextInputType.emailAddress,
             validator: (v) {
-              if (v == null || v.isEmpty) return 'Email requis';
+              if (v == null || v.isEmpty) return l10n.errorRequired;
               if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
                   .hasMatch(v)) {
-                return 'Email invalide';
+                return l10n.errorInvalidEmail;
               }
               return null;
             },
           ),
           const SizedBox(height: 20),
-          _buildLabel('Mot de passe'),
+          _buildLabel(l10n.loginPasswordLabel),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _passCtrl,
-            hint: '••••••••',
+            hint: l10n.loginPasswordHint,
             icon: Icons.lock_outline_rounded,
             obscure: _obscurePass,
             suffixIcon: IconButton(
@@ -502,8 +610,8 @@ class _LoginScreenState extends State<LoginScreen>
                   setState(() => _obscurePass = !_obscurePass),
             ),
             validator: (v) {
-              if (v == null || v.isEmpty) return 'Mot de passe requis';
-              if (v.length < 6) return 'Minimum 6 caractères';
+              if (v == null || v.isEmpty) return l10n.errorRequired;
+              if (v.length < 6) return l10n.signupPasswordHint;
               return null;
             },
           ),
@@ -518,9 +626,9 @@ class _LoginScreenState extends State<LoginScreen>
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
-                'Mot de passe oublié ?',
-                style: TextStyle(
+              child: Text(
+                l10n.loginForgotPassword,
+                style: const TextStyle(
                   color: Color(0xFF3EFFA8),
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -560,22 +668,22 @@ class _LoginScreenState extends State<LoginScreen>
 
           const SizedBox(height: 24),
           _buildPrimaryButton(
-              label: 'Se connecter', onTap: _handleLogin),
+              label: l10n.loginButton, onTap: _handleLogin),
           const SizedBox(height: 24),
-          _buildDivider(),
+          _buildDivider(l10n),
           const SizedBox(height: 24),
-          _buildGoogleButton(),
+          _buildGoogleButton(l10n),
         ],
       ),
     );
   }
 
 
-  Widget _buildSignUpLink(Size size) => Row(
+  Widget _buildSignUpLink(Size size, AppLocalizations l10n) => Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
-      const Text("Pas encore de compte ? ",
-          style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
+      Text(l10n.loginNoAccount,
+          style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
       GestureDetector(
         onTap: () {
           Navigator.of(context).push(
@@ -587,8 +695,8 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           );
         },
-        child: const Text("S'inscrire",
-            style: TextStyle(
+        child: Text(l10n.loginSignupLink,
+            style: const TextStyle(
                 color: Color(0xFF3EFFA8),
                 fontSize: 14,
                 fontWeight: FontWeight.w700)),
@@ -719,7 +827,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildDivider() => Row(
+  Widget _buildDivider(AppLocalizations l10n) => Row(
     children: [
       Expanded(
         child: Container(
@@ -730,11 +838,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       ),
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 14),
-        child: Text('ou continuer avec',
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Text(l10n.loginOr,
             style:
-            TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+            const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
       ),
       Expanded(
         child: Container(
@@ -748,7 +856,7 @@ class _LoginScreenState extends State<LoginScreen>
     ],
   );
 
-  Widget _buildGoogleButton() => SizedBox(
+  Widget _buildGoogleButton(AppLocalizations l10n) => SizedBox(
     width: double.infinity,
     height: 52,
     child: OutlinedButton(
@@ -764,8 +872,8 @@ class _LoginScreenState extends State<LoginScreen>
         children: [
           _GoogleIcon(size: 20),
           const SizedBox(width: 12),
-          const Text('Continuer avec Google',
-              style: TextStyle(
+          Text(l10n.loginGoogle,
+              style: const TextStyle(
                   color: Color(0xFF8BA8D4),
                   fontSize: 14,
                   fontWeight: FontWeight.w500)),
@@ -852,6 +960,7 @@ class _SignUpScreenState extends State<SignUpScreen>
   }
 
   void _updatePasswordStrength() {
+    final l10n = AppLocalizations.of(context);
     final pass = _passCtrl.text;
     double strength = 0;
     if (pass.length >= 8) strength += 0.25;
@@ -861,16 +970,16 @@ class _SignUpScreenState extends State<SignUpScreen>
     String label;
     Color color;
     if (strength <= 0.25) {
-      label = 'Faible';
+      label = l10n.signupPasswordWeak;
       color = const Color(0xFFFF5C7A);
     } else if (strength <= 0.5) {
-      label = 'Moyen';
+      label = l10n.signupPasswordMedium;
       color = const Color(0xFFFFB340);
     } else if (strength <= 0.75) {
-      label = 'Bon';
+      label = l10n.signupPasswordGood;
       color = const Color(0xFF00D4FF);
     } else {
-      label = 'Excellent';
+      label = l10n.signupPasswordExcellent;
       color = const Color(0xFF3EFFA8);
     }
     setState(() {
@@ -892,12 +1001,13 @@ class _SignUpScreenState extends State<SignUpScreen>
   }
 
   Future<void> _handleSignUp() async {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptTerms) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text(
-            "Veuillez accepter les conditions d'utilisation",
-            style: TextStyle(color: Colors.white)),
+        content: Text(
+            "${l10n.signupAcceptTerms} ${l10n.signupTerms}",
+            style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF0D1B38),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -924,7 +1034,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
     if (result.isSuccess || result.isEmailSent) {
       // 📧 Email de vérification envoyé → affiche le dialog
-      _showEmailSentDialog(result.message ?? 'Email de vérification envoyé');
+      _showEmailSentDialog(result.message ?? l10n.signupEmailSentButton);
     } else {
       setState(() => _errorMessage = result.errorMessage);
     }
@@ -932,6 +1042,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
   // ── Dialog : email de vérification envoyé ────────────────
   void _showEmailSentDialog(String message) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -960,9 +1071,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                     color: Color(0xFF3EFFA8), size: 30),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Email envoyé ! 🎉',
-                style: TextStyle(
+              Text(
+                l10n.signupEmailSentTitle,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1000,9 +1111,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: const Text(
-                      'Aller se connecter',
-                      style: TextStyle(
+                    child: Text(
+                      l10n.signupEmailSentButton,
+                      style: const TextStyle(
                           color: Color(0xFF060D1F),
                           fontWeight: FontWeight.w700),
                     ),
@@ -1028,8 +1139,26 @@ class _SignUpScreenState extends State<SignUpScreen>
     setState(() => _isLoading = false);
 
     if (result.isSuccess) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil('/home', (route) => false);
+      final uid = result.user?.uid;
+      if (uid == null) {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
+        return;
+      }
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (!mounted) return;
+      final onboardingDone =
+          doc.exists && doc.data()?['onboardingDone'] == true;
+      if (onboardingDone) {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/home', (route) => false);
+      } else {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/onboarding', (route) => false);
+      }
     } else {
       setState(() => _errorMessage = result.errorMessage);
     }
@@ -1037,6 +1166,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide > 600;
     final hPad = isTablet ? size.width * 0.2 : 24.0;
@@ -1070,11 +1200,11 @@ class _SignUpScreenState extends State<SignUpScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(height: size.height * 0.06),
-                      _buildHeader(size),
+                      _buildHeader(size, l10n),
                       SizedBox(height: size.height * 0.045),
-                      _buildCard(size),
+                      _buildCard(size, l10n),
                       SizedBox(height: size.height * 0.03),
-                      _buildLoginLink(),
+                      _buildLoginLink(l10n),
                       SizedBox(height: size.height * 0.04),
                     ],
                   ),
@@ -1087,7 +1217,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     );
   }
 
-  Widget _buildHeader(Size size) {
+  Widget _buildHeader(Size size, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1111,7 +1241,7 @@ class _SignUpScreenState extends State<SignUpScreen>
             colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
           ).createShader(b),
           child: Text(
-            'Créer un compte',
+            l10n.signupTitle,
             style: TextStyle(
               fontSize: (size.width * 0.078).clamp(26.0, 44.0),
               fontWeight: FontWeight.w800,
@@ -1123,7 +1253,7 @@ class _SignUpScreenState extends State<SignUpScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Rejoignez Savy et commencez à épargner',
+          l10n.signupSubtitle,
           style: TextStyle(
             fontSize: (size.width * 0.038).clamp(13.0, 18.0),
             color: const Color(0xFF6B8CAE),
@@ -1133,7 +1263,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     );
   }
 
-  Widget _buildCard(Size size) {
+  Widget _buildCard(Size size, AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(28),
@@ -1156,37 +1286,37 @@ class _SignUpScreenState extends State<SignUpScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLabel('Nom complet'),
+          _buildLabel(l10n.signupNameLabel),
           const SizedBox(height: 8),
           _buildTextField(
               controller: _nameCtrl,
-              hint: 'Votre nom',
+              hint: l10n.signupNameHint,
               icon: Icons.person_outline_rounded,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Nom requis';
+                if (v == null || v.trim().isEmpty) return l10n.errorRequired;
                 return null;
               }),
           const SizedBox(height: 18),
-          _buildLabel('Adresse email'),
+          _buildLabel(l10n.signupEmailLabel),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _emailCtrl,
-            hint: 'votre@email.com',
+            hint: l10n.loginEmailHint,
             icon: Icons.alternate_email_rounded,
             keyboardType: TextInputType.emailAddress,
             validator: (v) {
-              if (v == null || v.isEmpty) return 'Email requis';
+              if (v == null || v.isEmpty) return l10n.errorRequired;
               if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
-                  .hasMatch(v)) return 'Email invalide';
+                  .hasMatch(v)) return l10n.errorInvalidEmail;
               return null;
             },
           ),
           const SizedBox(height: 18),
-          _buildLabel('Mot de passe'),
+          _buildLabel(l10n.signupPasswordLabel),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _passCtrl,
-            hint: '••••••••',
+            hint: l10n.signupPasswordHint,
             icon: Icons.lock_outline_rounded,
             obscure: _obscurePass,
             suffixIcon: IconButton(
@@ -1200,17 +1330,17 @@ class _SignUpScreenState extends State<SignUpScreen>
                   setState(() => _obscurePass = !_obscurePass),
             ),
             validator: (v) {
-              if (v == null || v.isEmpty) return 'Mot de passe requis';
-              if (v.length < 6) return 'Minimum 6 caractères';
+              if (v == null || v.isEmpty) return l10n.errorRequired;
+              if (v.length < 6) return l10n.signupPasswordHint;
               return null;
             },
           ),
           if (_passStrengthLabel.isNotEmpty) ...[
             const SizedBox(height: 10),
-            _buildPasswordStrength(),
+            _buildPasswordStrength(l10n),
           ],
           const SizedBox(height: 18),
-          _buildLabel('Confirmer le mot de passe'),
+          _buildLabel(l10n.signupConfirmPasswordLabel),
           const SizedBox(height: 8),
           _buildTextField(
             controller: _confirmCtrl,
@@ -1228,14 +1358,14 @@ class _SignUpScreenState extends State<SignUpScreen>
                   setState(() => _obscureConfirm = !_obscureConfirm),
             ),
             validator: (v) {
-              if (v == null || v.isEmpty) return 'Confirmation requise';
+              if (v == null || v.isEmpty) return l10n.errorRequired;
               if (v != _passCtrl.text)
                 return 'Les mots de passe ne correspondent pas';
               return null;
             },
           ),
           const SizedBox(height: 20),
-          _buildTermsCheckbox(),
+          _buildTermsCheckbox(l10n),
           // Erreur Firebase
           if (_errorMessage != null) ...[
             const SizedBox(height: 12),
@@ -1264,17 +1394,17 @@ class _SignUpScreenState extends State<SignUpScreen>
           ],
           const SizedBox(height: 24),
           _buildPrimaryButton(
-              label: "Créer mon compte", onTap: _handleSignUp),
+              label: l10n.signupButton, onTap: _handleSignUp),
           const SizedBox(height: 24),
-          _buildDivider(),
+          _buildDivider(l10n),
           const SizedBox(height: 24),
-          _buildGoogleButton(),
+          _buildGoogleButton(l10n),
         ],
       ),
     );
   }
 
-  Widget _buildPasswordStrength() {
+  Widget _buildPasswordStrength(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1307,13 +1437,13 @@ class _SignUpScreenState extends State<SignUpScreen>
           ],
         ),
         const SizedBox(height: 4),
-        const Text('Utilisez majuscules, chiffres et symboles',
-            style: TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
+        Text('${l10n.signupPasswordStrength} ${l10n.signupPasswordHint}',
+            style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
       ],
     );
   }
 
-  Widget _buildTermsCheckbox() {
+  Widget _buildTermsCheckbox(AppLocalizations l10n) {
     return GestureDetector(
       onTap: () => setState(() => _acceptTerms = !_acceptTerms),
       child: Row(
@@ -1351,7 +1481,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                     fontSize: 13,
                     height: 1.5),
                 children: [
-                  const TextSpan(text: "J'accepte les "),
+                  TextSpan(text: "${l10n.signupAcceptTerms} "),
                   WidgetSpan(
                     alignment: PlaceholderAlignment.baseline,
                     baseline: TextBaseline.alphabetic,
@@ -1383,8 +1513,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                         if (accepted == true)
                           setState(() => _acceptTerms = true);
                       },
-                      child: const Text("Conditions d'utilisation",
-                          style: TextStyle(
+                      child: Text(l10n.signupTerms,
+                          style: const TextStyle(
                             color: Color(0xFF3EFFA8),
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -1393,7 +1523,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                           )),
                     ),
                   ),
-                  const TextSpan(text: " et la "),
+                  TextSpan(text: " ${l10n.signupAnd} "),
                   WidgetSpan(
                     alignment: PlaceholderAlignment.baseline,
                     baseline: TextBaseline.alphabetic,
@@ -1425,8 +1555,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                         if (accepted == true)
                           setState(() => _acceptTerms = true);
                       },
-                      child: const Text("Politique de confidentialité",
-                          style: TextStyle(
+                      child: Text(l10n.signupPrivacy,
+                          style: const TextStyle(
                             color: Color(0xFF00D4FF),
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -1556,7 +1686,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     );
   }
 
-  Widget _buildDivider() => Row(children: [
+  Widget _buildDivider(AppLocalizations l10n) => Row(children: [
     Expanded(
       child: Container(
         height: 1,
@@ -1565,11 +1695,11 @@ class _SignUpScreenState extends State<SignUpScreen>
                 colors: [Colors.transparent, Color(0xFF1A2E52)])),
       ),
     ),
-    const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 14),
-      child: Text('ou continuer avec',
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Text(l10n.loginOr,
           style:
-          TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+          const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
     ),
     Expanded(
       child: Container(
@@ -1581,7 +1711,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     ),
   ]);
 
-  Widget _buildGoogleButton() => SizedBox(
+  Widget _buildGoogleButton(AppLocalizations l10n) => SizedBox(
     width: double.infinity,
     height: 52,
     child: OutlinedButton(
@@ -1597,8 +1727,8 @@ class _SignUpScreenState extends State<SignUpScreen>
         children: [
           _GoogleIcon(size: 20),
           const SizedBox(width: 12),
-          const Text('Continuer avec Google',
-              style: TextStyle(
+          Text(l10n.signupGoogle,
+              style: const TextStyle(
                   color: Color(0xFF8BA8D4),
                   fontSize: 14,
                   fontWeight: FontWeight.w500)),
@@ -1607,15 +1737,16 @@ class _SignUpScreenState extends State<SignUpScreen>
     ),
   );
 
-  Widget _buildLoginLink() => Row(
+  Widget _buildLoginLink(AppLocalizations l10n) => Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
-      const Text("Déjà un compte ? ",
-          style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
+      Text(l10n.signupAlreadyAccount,
+          style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 14)),
+      const SizedBox(width: 4),
       GestureDetector(
         onTap: () => Navigator.of(context).pop(),
-        child: const Text("Se connecter",
-            style: TextStyle(
+        child: Text(l10n.signupLoginLink,
+            style: const TextStyle(
                 color: Color(0xFF3EFFA8),
                 fontSize: 14,
                 fontWeight: FontWeight.w700)),

@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 // lib/views/profileScreen/backup/backup_screen.dart
 // donc lib/models = ../../../models
 // et lib/services = ../../../services
+import '../../../l10n/app_localizations.dart';
 import '../../../models/export_models.dart';
 import '../../../services/export_service.dart';
 
@@ -71,22 +72,33 @@ class _BackupScreenState extends State<BackupScreen>
     super.dispose();
   }
 
-  UserDataSnapshot _getUserData() {
+  UserDataSnapshot _getUserData(AppLocalizations l10n) {
     final user = FirebaseAuth.instance.currentUser;
     return ExportService.getMockData(
-      user?.displayName ?? 'Utilisateur',
+      user?.displayName ?? l10n.profileUserFallback,
       user?.email ?? '',
     );
   }
 
+  String _sectionLabel(ExportSection section, AppLocalizations l10n) {
+    switch (section) {
+      case ExportSection.budget:       return l10n.exportSectionBudget;
+      case ExportSection.transactions: return l10n.exportSectionTransactions;
+      case ExportSection.objectives:   return l10n.exportSectionObjectives;
+      case ExportSection.revenues:     return l10n.exportSectionRevenues;
+      case ExportSection.profile:      return l10n.profileUserFallback;
+    }
+  }
+
   Future<void> _previewPdf() async {
+    final l10n = AppLocalizations.of(context);
     if (_selectedSections.isEmpty) {
-      setState(() => _errorMessage = 'Sélectionnez au moins une section');
+      setState(() => _errorMessage = l10n.backupSelectAtLeastOne);
       return;
     }
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final data = _getUserData();
+      final data = _getUserData(l10n);
       final result = await ExportService.exportPdf(data, _selectedSections.toList());
 
       // 🔍 DEBUG : Affiche toutes les propriétés de result
@@ -109,7 +121,7 @@ class _BackupScreenState extends State<BackupScreen>
           ),
         ));
       } else {
-        setState(() => _errorMessage = result.errorMessage ?? 'Erreur inconnue');
+        setState(() => _errorMessage = result.errorMessage ?? AppLocalizations.of(context).errorGeneric);
       }
     } catch (e) {
       print('❌ Erreur: $e');
@@ -118,44 +130,43 @@ class _BackupScreenState extends State<BackupScreen>
   }
 
   Future<void> _exportCsv() async {
+    final l10n = AppLocalizations.of(context);
     if (_selectedSections.isEmpty) {
-      setState(() => _errorMessage = 'Sélectionnez au moins une section');
+      setState(() => _errorMessage = l10n.backupSelectAtLeastOne);
       return;
     }
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final data = _getUserData();
+      final data = _getUserData(l10n);
       final result = await ExportService.exportCsv(data, _selectedSections.toList());
       if (!mounted) return;
       setState(() => _isLoading = false);
 
       if (result.isSuccess && result.filePath != null) {
-        // Partager le fichier - fonctionne sans permissions
         await Share.shareXFiles(
           [XFile(result.filePath!)],
-          subject: 'Savy - Export CSV',
-          text: 'Voici mon export CSV depuis Savy',
+          subject: l10n.backupCsvShareSubject,
+          text: l10n.backupCsvShareText,
         );
 
-        // Message de confirmation
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Color(0xFF3EFFA8), size: 20),
-                  SizedBox(width: 12),
-                  Text('Fichier CSV généré avec succès'),
+                  const Icon(Icons.check_circle, color: Color(0xFF3EFFA8), size: 20),
+                  const SizedBox(width: 12),
+                  Text(l10n.backupCsvSuccess),
                 ],
               ),
-              backgroundColor: Color(0xFF0B1535),
+              backgroundColor: const Color(0xFF0B1535),
               behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
       } else {
-        setState(() => _errorMessage = result.errorMessage ?? 'Erreur inconnue');
+        setState(() => _errorMessage = result.errorMessage ?? l10n.errorGeneric);
       }
     } catch (e) {
       setState(() { _isLoading = false; _errorMessage = e.toString(); });
@@ -172,6 +183,7 @@ class _BackupScreenState extends State<BackupScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final hPad = size.shortestSide > 600 ? size.width * 0.2 : 20.0;
 
@@ -188,7 +200,7 @@ class _BackupScreenState extends State<BackupScreen>
           SafeArea(
             child: Column(
               children: [
-                _buildTopBar(context),
+                _buildTopBar(context, l10n),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -196,21 +208,21 @@ class _BackupScreenState extends State<BackupScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildIntroCard(),
+                        _buildIntroCard(l10n),
                         const SizedBox(height: 24),
-                        _sectionTitle('Format d\'export'),
+                        _sectionTitle(l10n.backupFormatExport),
                         const SizedBox(height: 12),
-                        _buildFormatSelector(),
+                        _buildFormatSelector(l10n),
                         const SizedBox(height: 24),
-                        _sectionTitle('Données à inclure'),
+                        _sectionTitle(l10n.backupDataToInclude),
                         const SizedBox(height: 12),
-                        _buildSectionsSelector(),
+                        _buildSectionsSelector(l10n),
                         const SizedBox(height: 24),
-                        _buildPreviewCard(),
+                        _buildPreviewCard(l10n),
                         const SizedBox(height: 20),
                         if (_errorMessage != null) _alertWidget(_errorMessage!),
                         const SizedBox(height: 8),
-                        _buildExportButton(),
+                        _buildExportButton(l10n),
                       ],
                     ),
                   ),
@@ -223,7 +235,7 @@ class _BackupScreenState extends State<BackupScreen>
     );
   }
 
-  Widget _buildTopBar(BuildContext context) => Padding(
+  Widget _buildTopBar(BuildContext context, AppLocalizations l10n) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Row(children: [
       GestureDetector(
@@ -243,8 +255,8 @@ class _BackupScreenState extends State<BackupScreen>
       ShaderMask(
         shaderCallback: (b) => const LinearGradient(
             colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-        child: const Text('Sauvegarder les données',
-            style: TextStyle(color: Colors.white, fontSize: 18,
+        child: Text(l10n.backupSaveDataTitle,
+            style: const TextStyle(color: Colors.white, fontSize: 18,
                 fontWeight: FontWeight.w800)),
       ),
       const Spacer(),
@@ -263,7 +275,7 @@ class _BackupScreenState extends State<BackupScreen>
     ]),
   );
 
-  Widget _buildIntroCard() => Container(
+  Widget _buildIntroCard(AppLocalizations l10n) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(18),
@@ -273,19 +285,19 @@ class _BackupScreenState extends State<BackupScreen>
       ]),
       border: Border.all(color: const Color(0xFF3EFFA8).withOpacity(0.2)),
     ),
-    child: const Row(children: [
-      Icon(Icons.info_outline_rounded, color: Color(0xFF3EFFA8), size: 22),
-      SizedBox(width: 14),
+    child: Row(children: [
+      const Icon(Icons.info_outline_rounded, color: Color(0xFF3EFFA8), size: 22),
+      const SizedBox(width: 14),
       Expanded(
         child: Text(
-          'Exportez vos données financières en PDF ou CSV. Sélectionnez les sections souhaitées puis visualisez l\'aperçu avant de télécharger.',
-          style: TextStyle(color: Color(0xFF8BA8D4), fontSize: 12, height: 1.5),
+          l10n.backupIntroText,
+          style: const TextStyle(color: Color(0xFF8BA8D4), fontSize: 12, height: 1.5),
         ),
       ),
     ]),
   );
 
-  Widget _buildFormatSelector() => Row(
+  Widget _buildFormatSelector(AppLocalizations l10n) => Row(
     children: ExportFormat.values.map((format) {
       final isSelected = _selectedFormat == format;
       final isPdf = format == ExportFormat.pdf;
@@ -316,7 +328,7 @@ class _BackupScreenState extends State<BackupScreen>
                       color: isSelected ? color : const Color(0xFF6B8CAE),
                       fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(isPdf ? 'Rapport formaté' : 'Données brutes',
+              Text(isPdf ? l10n.backupPdfLabel : l10n.backupCsvLabel,
                   style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
               if (isSelected) ...[
                 const SizedBox(height: 6),
@@ -326,7 +338,7 @@ class _BackupScreenState extends State<BackupScreen>
                     borderRadius: BorderRadius.circular(20),
                     color: color.withOpacity(0.15),
                   ),
-                  child: Text('Sélectionné',
+                  child: Text(l10n.backupSelected,
                       style: TextStyle(color: color, fontSize: 10,
                           fontWeight: FontWeight.w600)),
                 ),
@@ -338,7 +350,7 @@ class _BackupScreenState extends State<BackupScreen>
     }).toList(),
   );
 
-  Widget _buildSectionsSelector() {
+  Widget _buildSectionsSelector(AppLocalizations l10n) {
     final filteredSections = ExportSection.values
         .where((s) => s != ExportSection.profile)
         .toList();
@@ -382,7 +394,7 @@ class _BackupScreenState extends State<BackupScreen>
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: Text(section.label,
+                    child: Text(_sectionLabel(section, l10n),
                         style: TextStyle(
                             color: isSelected ? Colors.white : const Color(0xFF6B8CAE),
                             fontSize: 14,
@@ -415,7 +427,7 @@ class _BackupScreenState extends State<BackupScreen>
     );
   }
 
-  Widget _buildPreviewCard() {
+  Widget _buildPreviewCard(AppLocalizations l10n) {
     final user = FirebaseAuth.instance.currentUser;
     final date = DateTime.now();
     return Container(
@@ -429,8 +441,8 @@ class _BackupScreenState extends State<BackupScreen>
         Row(children: [
           const Icon(Icons.description_outlined, color: Color(0xFF8BA8D4), size: 16),
           const SizedBox(width: 8),
-          const Text('Aperçu du fichier',
-              style: TextStyle(color: Color(0xFF8BA8D4), fontSize: 12,
+          Text(l10n.backupFilePreview,
+              style: const TextStyle(color: Color(0xFF8BA8D4), fontSize: 12,
                   fontWeight: FontWeight.w500)),
           const Spacer(),
           Container(
@@ -456,13 +468,13 @@ class _BackupScreenState extends State<BackupScreen>
         const Divider(height: 1, color: Color(0xFF1A2E52)),
         const SizedBox(height: 12),
         _previewRow(Icons.person_outline_rounded,
-            user?.displayName ?? 'Utilisateur', const Color(0xFF3EFFA8)),
+            user?.displayName ?? l10n.profileUserFallback, const Color(0xFF3EFFA8)),
         _previewRow(Icons.alternate_email_rounded,
             user?.email ?? '', const Color(0xFF00D4FF)),
         _previewRow(Icons.calendar_today_rounded,
             '${date.day}/${date.month}/${date.year}', const Color(0xFF8BA8D4)),
         _previewRow(Icons.layers_rounded,
-            '${_selectedSections.length} section(s) sélectionnée(s)',
+            l10n.backupSectionsSelected(_selectedSections.length),
             const Color(0xFFFFB340)),
         const SizedBox(height: 12),
         Wrap(
@@ -476,7 +488,7 @@ class _BackupScreenState extends State<BackupScreen>
                 color: color.withOpacity(0.1),
                 border: Border.all(color: color.withOpacity(0.3)),
               ),
-              child: Text(s.label,
+              child: Text(_sectionLabel(s, l10n),
                   style: TextStyle(color: color, fontSize: 11,
                       fontWeight: FontWeight.w500)),
             );
@@ -495,7 +507,7 @@ class _BackupScreenState extends State<BackupScreen>
     ]),
   );
 
-  Widget _buildExportButton() {
+  Widget _buildExportButton(AppLocalizations l10n) {
     final isPdf = _selectedFormat == ExportFormat.pdf;
     final color  = isPdf ? const Color(0xFFFF5C7A) : const Color(0xFF3EFFA8);
     final color2 = isPdf ? const Color(0xFF7B61FF) : const Color(0xFF00D4FF);
@@ -534,7 +546,7 @@ class _BackupScreenState extends State<BackupScreen>
             color: Colors.white, size: 20,
           ),
           label: Text(
-            isPdf ? 'Aperçu & Télécharger PDF' : 'Exporter en CSV',
+            isPdf ? l10n.backupPreviewDownloadPdf : l10n.backupExportCsv,
             style: const TextStyle(color: Colors.white, fontSize: 15,
                 fontWeight: FontWeight.w700),
           ),
@@ -600,16 +612,15 @@ class _PdfPreviewScreen extends StatelessWidget {
         title: ShaderMask(
           shaderCallback: (b) => const LinearGradient(
               colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-          child: const Text('Aperçu PDF',
-              style: TextStyle(color: Colors.white, fontSize: 16,
+          child: Text(AppLocalizations.of(context).backupPdfPreviewTitle,
+              style: const TextStyle(color: Colors.white, fontSize: 16,
                   fontWeight: FontWeight.w800)),
         ),
         actions: [
-          // Bouton partager
           GestureDetector(
             onTap: () async => await Share.shareXFiles(
               [XFile(filePath)],
-              subject: 'Savy - Rapport financier',
+              subject: AppLocalizations.of(context).backupPdfShareSubject,
             ),
             child: Container(
               margin: const EdgeInsets.only(right: 8),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
 import '../../models/objective.dart';
+import '../../providers/currency_provider.dart';
 import '../../viewmodels/objectives_view_model.dart';
 
 // ══════════════════════════════════════════════════════════════
@@ -99,6 +102,8 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
   // ── Build ──────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final cur = context.watch<CurrencyProvider>();
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0B1535),
@@ -123,19 +128,19 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Nouvel objectif',
-                style: TextStyle(
+            Text(l10n.objectivesAdd,
+                style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 20),
 
             // ── Nom (texte libre)
-            _label('Nom de l\'objectif'),
+            _label(l10n.objectivesName),
             const SizedBox(height: 8),
             _textField(
               ctrl: _nameCtrl,
-              hint: 'Ex: Ordinateur portable',
+              hint: l10n.objectivesNameHint,
               icon: Icons.flag_rounded,
             ),
             const SizedBox(height: 14),
@@ -147,7 +152,7 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('Montant cible (TND)'),
+                      _label('Montant cible (${cur.selected.symbol})'),
                       const SizedBox(height: 8),
                       _amountField(
                         ctrl: _targetCtrl,
@@ -162,7 +167,7 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('Déjà épargné (TND)'),
+                      _label('Déjà épargné (${cur.selected.symbol})'),
                       const SizedBox(height: 8),
                       _amountField(
                         ctrl: _currentCtrl,
@@ -177,25 +182,25 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
             const SizedBox(height: 14),
 
             // ── Priorité — liste 1 à 5
-            _label('Priorité'),
+            _label(l10n.objectivesPriority),
             const SizedBox(height: 10),
             _buildPrioritySelector(),
             const SizedBox(height: 14),
 
             // ── Date limite
-            _label('Date limite'),
+            _label(l10n.objectivesDeadline),
             const SizedBox(height: 8),
             _buildDatePicker(),
             const SizedBox(height: 20),
 
             // ── Icône
-            _label('Icône'),
+            _label(l10n.objectivesIcon),
             const SizedBox(height: 10),
             _buildIconSelector(),
             const SizedBox(height: 20),
 
             // ── Couleur
-            _label('Couleur'),
+            _label(l10n.objectivesColor),
             const SizedBox(height: 10),
             _buildColorSelector(),
             const SizedBox(height: 28),
@@ -218,8 +223,8 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
                     width: 20, height: 20,
                     child: CircularProgressIndicator(
                         color: Color(0xFF060D1F), strokeWidth: 2))
-                    : const Text('Créer l\'objectif',
-                    style: TextStyle(
+                    : Text(l10n.objectivesCreate,
+                    style: const TextStyle(
                         color: Color(0xFF060D1F),
                         fontWeight: FontWeight.w700,
                         fontSize: 15)),
@@ -237,14 +242,6 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
 
   // ── Priorité 1-5 (chips sélectionnables) ──────────────────
   Widget _buildPrioritySelector() {
-    const labels = {
-      1: '1 — Haute',
-      2: '2 — Élevée',
-      3: '3 — Moyenne',
-      4: '4 — Faible',
-      5: '5 — Basse',
-    };
-
     return Row(
       children: List.generate(5, (i) {
         final val = i + 1;
@@ -287,25 +284,6 @@ class _AddObjectiveSheetState extends State<AddObjectiveSheet> {
           ),
         );
       }),
-    );
-  }
-
-  // ── Label de priorité en dessous ──────────────────────────
-  Widget _buildPriorityLabel() {
-    const labels = {
-      1: 'Haute',
-      2: 'Élevée',
-      3: 'Moyenne',
-      4: 'Faible',
-      5: 'Basse',
-    };
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Text(
-        'Priorité sélectionnée : ${labels[_selectedPriority]}',
-        style: const TextStyle(
-            color: Color(0xFF3EFFA8), fontSize: 11),
-      ),
     );
   }
 

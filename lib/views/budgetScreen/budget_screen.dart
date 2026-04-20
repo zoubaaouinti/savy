@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
 import '../../models/budget_models.dart';
 import '../../models/export_models.dart';
+import '../../providers/currency_provider.dart';
 import '../../services/transaction_service.dart';
+import '../../utils/category_translator.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -21,6 +25,9 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   final TransactionService _transactionService = TransactionService();
 
+  // ------------------------------------------------------------
+  //  HELPERS (icônes, couleurs)
+  // ------------------------------------------------------------
   IconData _iconFromName(String name) {
     const map = {
       'restaurant': Icons.restaurant_rounded,
@@ -32,9 +39,24 @@ class _BudgetScreenState extends State<BudgetScreen>
       'school': Icons.school_rounded,
       'work': Icons.work_rounded,
       'family_restroom': Icons.family_restroom_rounded,
+      'attach_money': Icons.attach_money_rounded,
     };
     return map[name] ?? Icons.category_rounded;
   }
+
+  // Liste des icônes disponibles pour les catégories personnalisées
+  final List<String> _availableIcons = [
+    'restaurant', 'directions_bus', 'movie', 'menu_book',
+    'favorite', 'category', 'school', 'work', 'family_restroom',
+    'attach_money', 'shopping_cart', 'local_pharmacy', 'sports_esports',
+    'flight', 'home', 'computer', 'book', 'music_note', 'brush'
+  ];
+
+  // Liste des couleurs disponibles
+  final List<int> _availableColors = [
+    0xFFFFB340, 0xFF00D4FF, 0xFFFF5C7A, 0xFF7B61FF, 0xFF3EFFA8,
+    0xFF8BA8D4, 0xFFFF6B6B, 0xFF4ECDC4, 0xFFFFE66D, 0xFFA8E6CF
+  ];
 
   @override
   void initState() {
@@ -106,93 +128,306 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   Future<void> _refreshData() async => await _loadData();
 
-  Future<void> _editBudgetCategory(BudgetCategory category) async {
+  // ------------------------------------------------------------
+  //  CRUD CATÉGORIES
+  // ------------------------------------------------------------
+  Future<void> _addNewCategory() async {
+    final l10n = AppLocalizations.of(context);
+    final formKey = GlobalKey<FormState>();
+    String name = '';
+    double budget = 0;
+    String iconName = 'category';
+    int colorValue = 0xFF8BA8D4;
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetNewCategory,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryName),
+                  onChanged: (v) => name = v,
+                  validator: (v) => v == null || v.isEmpty ? l10n.errorRequired : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryBudgetLabel),
+                  onChanged: (v) => budget = double.tryParse(v) ?? 0,
+                  validator: (v) => v == null || double.tryParse(v) == null ? l10n.errorInvalidAmount : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: iconName,
+                  dropdownColor: const Color(0xFF0D1B38),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryIcon),
+                  items: _availableIcons.map((icon) {
+                    return DropdownMenuItem(
+                      value: icon,
+                      child: Row(children: [
+                        Icon(_iconFromName(icon), size: 20, color: const Color(0xFF3EFFA8)),
+                        const SizedBox(width: 8),
+                        Text(icon),
+                      ]),
+                    );
+                  }).toList(),
+                  onChanged: (v) => iconName = v!,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  value: colorValue,
+                  dropdownColor: const Color(0xFF0D1B38),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryColor),
+                  items: _availableColors.map((color) {
+                    return DropdownMenuItem(
+                      value: color,
+                      child: Row(children: [
+                        Container(width: 24, height: 24, color: Color(color)),
+                        const SizedBox(width: 8),
+                        Text('#${color.toRadixString(16)}'),
+                      ]),
+                    );
+                  }).toList(),
+                  onChanged: (v) => colorValue = v!,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                await _transactionService.addBudgetCategory(
+                  name: name,
+                  budget: budget,
+                  iconName: iconName,
+                  colorValue: colorValue,
+                );
+                Navigator.pop(context);
+                _showSuccess(l10n.budgetDeleteSuccess);
+              }
+            },
+            child: Text(l10n.budgetCategoryCreate),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editFullCategory(BudgetCategory category) async {
+    final l10n = AppLocalizations.of(context);
+    final formKey = GlobalKey<FormState>();
+    String name = category.name;
+    double budget = category.budget;
+    String iconName = category.iconName;
+    int colorValue = category.colorValue;
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetNewCategory,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: name,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryName),
+                  onChanged: (v) => name = v,
+                  validator: (v) => v == null || v.isEmpty ? l10n.errorRequired : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: budget.toString(),
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryBudgetLabel),
+                  onChanged: (v) => budget = double.tryParse(v) ?? 0,
+                  validator: (v) => v == null || double.tryParse(v) == null ? l10n.errorInvalidAmount : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: iconName,
+                  dropdownColor: const Color(0xFF0D1B38),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryIcon),
+                  items: _availableIcons.map((icon) {
+                    return DropdownMenuItem(
+                      value: icon,
+                      child: Row(children: [
+                        Icon(_iconFromName(icon), size: 20, color: const Color(0xFF3EFFA8)),
+                        const SizedBox(width: 8),
+                        Text(icon),
+                      ]),
+                    );
+                  }).toList(),
+                  onChanged: (v) => iconName = v!,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  value: colorValue,
+                  dropdownColor: const Color(0xFF0D1B38),
+                  decoration: InputDecoration(labelText: l10n.budgetCategoryColor),
+                  items: _availableColors.map((color) {
+                    return DropdownMenuItem(
+                      value: color,
+                      child: Row(children: [
+                        Container(width: 24, height: 24, color: Color(color)),
+                        const SizedBox(width: 8),
+                        Text('#${color.toRadixString(16)}'),
+                      ]),
+                    );
+                  }).toList(),
+                  onChanged: (v) => colorValue = v!,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                await _transactionService.updateBudgetCategory(
+                  id: category.id,
+                  name: name,
+                  budget: budget,
+                  iconName: iconName,
+                  colorValue: colorValue,
+                );
+                Navigator.pop(context);
+                _showSuccess(l10n.budgetDeleteSuccess);
+              }
+            },
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteCategory(BudgetCategory category) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetDeleteCategory,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          '${l10n.budgetDeleteConfirm} "${CategoryTranslator.byIconName(category.iconName, l10n)}" ?',
+          style: const TextStyle(color: Color(0xFF8BA8D4)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.cancel)),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C7A)),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await _transactionService.deleteBudgetCategory(category.id);
+        _showSuccess(l10n.budgetDeleteSuccess);
+      } catch (e) {
+        _showError(e.toString());
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  //  MODIFICATION DU BUDGET (montant seulement) – ancienne méthode
+  // ------------------------------------------------------------
+  Future<void> _editBudgetAmount(BudgetCategory category) async {
+    final l10n = AppLocalizations.of(context);
     final controller = TextEditingController(text: category.budget.toString());
     final newBudget = await showDialog<double>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF0B1535),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF1A2E52)),
-        ),
-        title: const Text('Modifier le budget',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetCategoryBudgetLabel,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            labelText: 'Nouveau budget (TND)',
+            labelText: l10n.budgetCategoryBudgetLabel,
             labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1A2E52))),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, null), child: Text(l10n.cancel)),
           ElevatedButton(
             onPressed: () {
               final value = double.tryParse(controller.text);
-              if (value != null && value > 0) {
-                Navigator.pop(context, value);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Montant invalide'),
-                      backgroundColor: Color(0xFFFF5C7A)),
-                );
-              }
+              if (value != null && value > 0) Navigator.pop(context, value);
+              else _showError(l10n.errorInvalidAmount);
             },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3EFFA8),
-                foregroundColor: const Color(0xFF060D1F)),
-            child: const Text('Enregistrer'),
+            child: Text(l10n.save),
           ),
         ],
       ),
     );
     if (newBudget != null && newBudget != category.budget) {
-      await _transactionService.updateBudget(category.name, newBudget);
-      _showSuccess('Budget mis à jour');
+      await _transactionService.updateBudget(category.id, newBudget);
+      _showSuccess(l10n.budgetDeleteSuccess);
     }
   }
 
+  // ------------------------------------------------------------
+  //  TRANSACTIONS (avec ID de catégorie)
+  // ------------------------------------------------------------
   Future<void> _deleteTransaction(TransactionSnapshot transaction) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF0B1535),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFFF5C7A)),
-        ),
-        title: const Text('Supprimer la transaction',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('Voulez-vous vraiment supprimer "${transaction.label}" ?',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetDeleteCategory,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('${l10n.budgetDeleteConfirm} "${transaction.label}" ?',
             style: const TextStyle(color: Color(0xFF8BA8D4))),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF5C7A),
-                foregroundColor: Colors.white),
-            child: const Text('Supprimer'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C7A)),
+            child: Text(l10n.delete),
           ),
         ],
       ),
     );
     if (confirmed == true) {
       await _transactionService.deleteTransaction(transaction.id);
-      _showSuccess('Transaction supprimée');
+      _showSuccess(l10n.budgetDeleteSuccess);
     }
   }
 
@@ -200,51 +435,49 @@ class _BudgetScreenState extends State<BudgetScreen>
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => _EditTransactionDialog(
-          transaction: transaction, categories: _categories),
+        transaction: transaction,
+        categories: _categories,
+      ),
     );
     if (result != null) {
       await _transactionService.updateTransaction(
         transaction.id,
         label: result['label'],
         amount: result['amount'],
-        category: result['category'],
+        categoryId: result['categoryId'],
         note: result['note'],
       );
-      _showSuccess('Transaction modifiée');
+      _showSuccess(AppLocalizations.of(context).budgetDeleteSuccess);
     }
   }
 
+  // ------------------------------------------------------------
+  //  REVENUS
+  // ------------------------------------------------------------
   Future<void> _deleteRevenue(RevenueSource revenue) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF0B1535),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFFF5C7A)),
-        ),
-        title: const Text('Supprimer le revenu',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('Voulez-vous vraiment supprimer "${revenue.source}" ?',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l10n.budgetDeleteRevenue,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('${l10n.budgetDeleteConfirm} "${revenue.source}" ?',
             style: const TextStyle(color: Color(0xFF8BA8D4))),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF5C7A),
-                foregroundColor: Colors.white),
-            child: const Text('Supprimer'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C7A)),
+            child: Text(l10n.delete),
           ),
         ],
       ),
     );
     if (confirmed == true) {
       await _transactionService.deleteRevenue(revenue.id);
-      _showSuccess('Revenu supprimé');
+      _showSuccess(l10n.budgetDeleteSuccess);
     }
   }
 
@@ -260,7 +493,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         amount: result['amount'],
         type: result['type'],
       );
-      _showSuccess('Revenu modifié');
+      _showSuccess(AppLocalizations.of(context).budgetDeleteSuccess);
     }
   }
 
@@ -269,14 +502,23 @@ class _BudgetScreenState extends State<BudgetScreen>
       content: Text(message),
       backgroundColor: const Color(0xFF3EFFA8),
       behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 2),
     ));
   }
 
-  // ✅ FIX BUG 2 — NestedScrollView remplace CustomScrollView + RefreshIndicator
-  // Le header est ancré dans headerSliverBuilder, il ne disparaît plus au pull-to-refresh.
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: const Color(0xFFFF5C7A),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  // ------------------------------------------------------------
+  //  UI BUILD
+  // ------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
@@ -286,30 +528,26 @@ class _BudgetScreenState extends State<BudgetScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
+                  _buildHeader(context),
                   const SizedBox(height: 16),
-                  _buildBudgetSummary(),
+                  _buildBudgetSummary(context),
                   const SizedBox(height: 16),
-                  _buildTabBar(),
+                  _buildTabBar(context),
                 ],
               ),
             ),
           ],
           body: _isLoading
-              ? const Center(
-              child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8))))
+              ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(Color(0xFF3EFFA8))))
               : RefreshIndicator(
             onRefresh: _refreshData,
             color: const Color(0xFF3EFFA8),
-            strokeWidth: 2.5,
-            displacement: 60,
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildCategoriesTab(),
-                _buildTransactionsTab(),
-                _buildRevenueTab(),
+                _buildCategoriesTab(context),
+                _buildTransactionsTab(context),
+                _buildRevenueTab(context),
               ],
             ),
           ),
@@ -320,37 +558,38 @@ class _BudgetScreenState extends State<BudgetScreen>
         onPressed: () => _showAddSheet(context),
         backgroundColor: const Color(0xFF3EFFA8),
         icon: const Icon(Icons.add, color: Color(0xFF060D1F)),
-        label: const Text('Nouvelle transaction',
-            style: TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700)),
+        label: Text(l10n.budgetAddTransaction,
+            style: const TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700)),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Row(
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Budget', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-              Text('Suivi de vos finances', style: TextStyle(color: Color(0xFF4A6080), fontSize: 13)),
+              Text(l10n.budgetTitle, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+              Text(l10n.budgetSubtitle, style: const TextStyle(color: Color(0xFF4A6080), fontSize: 13)),
             ],
           ),
           const Spacer(),
           GestureDetector(
-            onTap: () => _showAddSheet(context),
+            onTap: _addNewCategory,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]),
               ),
-              child: const Row(children: [
-                Icon(Icons.add, color: Color(0xFF060D1F), size: 16),
-                SizedBox(width: 4),
-                Text('Ajouter', style: TextStyle(color: Color(0xFF060D1F), fontSize: 12, fontWeight: FontWeight.w700)),
+              child: Row(children: [
+                const Icon(Icons.add, color: Color(0xFF060D1F), size: 16),
+                const SizedBox(width: 4),
+                Text(l10n.budgetAddCategory, style: const TextStyle(color: Color(0xFF060D1F), fontSize: 12, fontWeight: FontWeight.w700)),
               ]),
             ),
           ),
@@ -359,16 +598,18 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildBudgetSummary() {
+  Widget _buildBudgetSummary(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = _summary;
+    final cur = context.watch<CurrencyProvider>();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(children: [
-        Expanded(child: _summaryTile('Budget total', '${s.totalBudget.toStringAsFixed(0)} TND', const Color(0xFF8BA8D4))),
+        Expanded(child: _summaryTile(l10n.budgetTotal, cur.format(s.totalBudget), const Color(0xFF8BA8D4))),
         const SizedBox(width: 10),
-        Expanded(child: _summaryTile('Dépensé', '${s.totalSpent.toStringAsFixed(0)} TND', const Color(0xFFFF5C7A))),
+        Expanded(child: _summaryTile(l10n.budgetSpent, cur.format(s.totalSpent), const Color(0xFFFF5C7A))),
         const SizedBox(width: 10),
-        Expanded(child: _summaryTile('Restant', '${s.remaining.toStringAsFixed(0)} TND', const Color(0xFF3EFFA8))),
+        Expanded(child: _summaryTile(l10n.budgetRemaining, cur.format(s.remaining), const Color(0xFF3EFFA8))),
       ]),
     );
   }
@@ -389,7 +630,8 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: TabBar(
@@ -403,22 +645,28 @@ class _BudgetScreenState extends State<BudgetScreen>
         labelColor: const Color(0xFF060D1F),
         unselectedLabelColor: const Color(0xFF4A6080),
         labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-        tabs: const [
-          Tab(text: 'Catégories'),
-          Tab(text: 'Transactions'),
-          Tab(text: 'Revenus'),
+        tabs: [
+          Tab(text: l10n.budgetTabBudget),
+          Tab(text: l10n.budgetTabRevenues),
+          Tab(text: l10n.budgetTabRevenues),
         ],
       ),
     );
   }
 
-  Widget _buildCategoriesTab() {
+  // ------------------------------------------------------------
+  //  ONGLET CATÉGORIES
+  // ------------------------------------------------------------
+  Widget _buildCategoriesTab(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_categories.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.category_outlined, color: Color(0xFF4A6080), size: 48),
-          SizedBox(height: 12),
-          Text('Aucune catégorie de budget', style: TextStyle(color: Color(0xFF4A6080))),
+          const Icon(Icons.category_outlined, color: Color(0xFF4A6080), size: 48),
+          const SizedBox(height: 12),
+          Text(l10n.budgetNoCategoryTitle, style: const TextStyle(color: Color(0xFF4A6080))),
+          const SizedBox(height: 8),
+          Text(l10n.budgetNoCategoryHint, style: const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
         ]),
       );
     }
@@ -434,6 +682,8 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   Widget _buildCategoryCard(BudgetCategory cat) {
+    final l10n = AppLocalizations.of(context);
+    final cur = context.watch<CurrencyProvider>();
     final color = Color(cat.colorValue);
     final displayColor = cat.isOver ? const Color(0xFFFF5C7A) : color;
     return Container(
@@ -442,43 +692,44 @@ class _BudgetScreenState extends State<BudgetScreen>
         borderRadius: BorderRadius.circular(16),
         color: const Color(0xFF0B1535),
         border: Border.all(
-            color: cat.isOver
-                ? const Color(0xFFFF5C7A).withOpacity(0.3)
-                : const Color(0xFF1A2E52).withOpacity(0.6)),
+          color: cat.isOver ? const Color(0xFFFF5C7A).withOpacity(0.3) : const Color(0xFF1A2E52).withOpacity(0.6),
+        ),
       ),
       child: Column(children: [
         Row(children: [
           Container(
             width: 38, height: 38,
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: displayColor.withOpacity(0.12)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: displayColor.withOpacity(0.12)),
             child: Icon(_iconFromName(cat.iconName), color: displayColor, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(cat.name, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-              Text('Budget: ${cat.budget.toStringAsFixed(0)} TND',
-                  style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
+              Text(CategoryTranslator.byIconName(cat.iconName, l10n), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('${l10n.budgetTotal}: ${cur.format(cat.budget)}', style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11)),
             ]),
           ),
           GestureDetector(
-            onTap: () => _editBudgetCategory(cat),
+            onTap: () => _editFullCategory(cat),
             child: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                  color: const Color(0xFF3EFFA8).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: const Color(0xFF3EFFA8).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.edit_rounded, color: Color(0xFF3EFFA8), size: 16),
             ),
           ),
           const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _deleteCategory(cat),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: const Color(0xFFFF5C7A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.delete_rounded, color: Color(0xFFFF5C7A), size: 16),
+            ),
+          ),
+          const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${cat.spent.toStringAsFixed(0)} TND',
-                style: TextStyle(color: displayColor, fontSize: 14, fontWeight: FontWeight.w700)),
-            if (cat.isOver)
-              const Text('Dépassé!', style: TextStyle(color: Color(0xFFFF5C7A), fontSize: 10)),
+            Text(cur.format(cat.spent), style: TextStyle(color: displayColor, fontSize: 14, fontWeight: FontWeight.w700)),
+            if (cat.isOver) Text(l10n.budgetOverspent, style: const TextStyle(color: Color(0xFFFF5C7A), fontSize: 10)),
           ]),
         ]),
         const SizedBox(height: 10),
@@ -492,22 +743,24 @@ class _BudgetScreenState extends State<BudgetScreen>
         ),
         const SizedBox(height: 4),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${(cat.progress * 100).toStringAsFixed(0)}% utilisé',
-              style: const TextStyle(color: Color(0xFF4A6080), fontSize: 10)),
-          Text('Restant: ${cat.remaining.toStringAsFixed(0)} TND',
-              style: TextStyle(color: displayColor, fontSize: 10)),
+          Text('${(cat.progress * 100).toStringAsFixed(0)}%', style: const TextStyle(color: Color(0xFF4A6080), fontSize: 10)),
+          Text('${l10n.budgetRemaining}: ${cur.format(cat.remaining)}', style: TextStyle(color: displayColor, fontSize: 10)),
         ]),
       ]),
     );
   }
 
-  Widget _buildTransactionsTab() {
+  // ------------------------------------------------------------
+  //  ONGLET TRANSACTIONS
+  // ------------------------------------------------------------
+  Widget _buildTransactionsTab(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_transactions.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.receipt_long_outlined, color: Color(0xFF4A6080), size: 48),
-          SizedBox(height: 12),
-          Text('Aucune transaction', style: TextStyle(color: Color(0xFF4A6080))),
+          const Icon(Icons.receipt_long_outlined, color: Color(0xFF4A6080), size: 48),
+          const SizedBox(height: 12),
+          Text(l10n.budgetNoCategoryTitle, style: const TextStyle(color: Color(0xFF4A6080))),
         ]),
       );
     }
@@ -520,6 +773,8 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   Widget _buildTransactionCard(TransactionSnapshot transaction) {
+    final l10n = AppLocalizations.of(context);
+    final cur = context.watch<CurrencyProvider>();
     final isIncome = transaction.isIncome;
     final amountColor = isIncome ? const Color(0xFF3EFFA8) : const Color(0xFFFF5C7A);
     final prefix = isIncome ? '+' : '-';
@@ -536,94 +791,61 @@ class _BudgetScreenState extends State<BudgetScreen>
         Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: amountColor.withOpacity(0.12)),
-            child: Icon(
-              isIncome ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-              color: amountColor, size: 20,
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: amountColor.withOpacity(0.12)),
+            child: Icon(isIncome ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: amountColor, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // ✅ FIX BUG 1 — Le titre affiche le label (description saisie),
-              // la catégorie est affichée dans le badge en dessous.
-              // Après modification via _EditTransactionDialog, les deux champs
-              // sont bien mis à jour séparément dans updateTransaction().
-              Text(
-                transaction.label,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(CategoryTranslator.resolveLabel(transaction.label, transaction.category, l10n), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
               Row(children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      color: const Color(0xFF1A2E52)),
-                  child: Text(transaction.category,
-                      style: const TextStyle(color: Color(0xFF8BA8D4), fontSize: 10)),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), color: const Color(0xFF1A2E52)),
+                  child: Text(CategoryTranslator.byStoredName(transaction.category, l10n), style: const TextStyle(color: Color(0xFF8BA8D4), fontSize: 10)),
                 ),
                 const SizedBox(width: 6),
-                Text(transaction.formattedDate,
-                    style: const TextStyle(color: Color(0xFF4A6080), fontSize: 10)),
+                Text(transaction.formattedDate, style: const TextStyle(color: Color(0xFF4A6080), fontSize: 10)),
               ]),
             ]),
           ),
           const SizedBox(width: 8),
-          Text(
-            '$prefix ${transaction.amount.toStringAsFixed(0)} TND',
-            style: TextStyle(
-                color: amountColor, fontSize: 14, fontWeight: FontWeight.w700),
-          ),
+          Text('$prefix ${cur.format(transaction.amount)}', style: TextStyle(color: amountColor, fontSize: 14, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 10),
         Row(children: [
           if (transaction.note != null && transaction.note!.isNotEmpty)
-            Expanded(
-              child: Text(transaction.note!,
-                  style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            )
+            Expanded(child: Text(transaction.note!, style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis))
           else
             const Spacer(),
           GestureDetector(
             onTap: () => _editTransaction(transaction),
-            child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                  color: const Color(0xFF3EFFA8).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.edit_rounded, color: Color(0xFF3EFFA8), size: 16),
-            ),
+            child: Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: const Color(0xFF3EFFA8).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.edit_rounded, color: Color(0xFF3EFFA8), size: 16)),
           ),
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () => _deleteTransaction(transaction),
-            child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                  color: const Color(0xFFFF5C7A).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.delete_rounded, color: Color(0xFFFF5C7A), size: 16),
-            ),
+            child: Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: const Color(0xFFFF5C7A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_rounded, color: Color(0xFFFF5C7A), size: 16)),
           ),
         ]),
       ]),
     );
   }
 
-  Widget _buildRevenueTab() {
+  // ------------------------------------------------------------
+  //  ONGLET REVENUS
+  // ------------------------------------------------------------
+  Widget _buildRevenueTab(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_revenues.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.trending_up_outlined, color: Color(0xFF4A6080), size: 48),
-          SizedBox(height: 12),
-          Text('Aucun revenu enregistré', style: TextStyle(color: Color(0xFF4A6080))),
+          const Icon(Icons.trending_up_outlined, color: Color(0xFF4A6080), size: 48),
+          const SizedBox(height: 12),
+          Text(l10n.budgetNoRevenueTitle, style: const TextStyle(color: Color(0xFF4A6080))),
+          const SizedBox(height: 8),
+          Text(l10n.budgetNoRevenueHint, style: const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
         ]),
       );
     }
@@ -643,26 +865,21 @@ class _BudgetScreenState extends State<BudgetScreen>
             const Icon(Icons.trending_up_rounded, color: Color(0xFF3EFFA8), size: 28),
             const SizedBox(width: 14),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Revenus totaux',
-                  style: TextStyle(color: Color(0xFF6B8CAE), fontSize: 12)),
+              Text(l10n.budgetTabRevenues, style: const TextStyle(color: Color(0xFF6B8CAE), fontSize: 12)),
               ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                    colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-                child: Text('${_totalRevenue.toStringAsFixed(0)} TND',
-                    style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+                shaderCallback: (b) => const LinearGradient(colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
+                child: Text(context.watch<CurrencyProvider>().format(_totalRevenue), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
               ),
             ]),
           ]),
         ),
-        ..._revenues.map((r) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _buildRevenueCard(r),
-        )),
+        ..._revenues.map((r) => Padding(padding: const EdgeInsets.only(bottom: 10), child: _buildRevenueCard(r))),
       ],
     );
   }
 
   Widget _buildRevenueCard(RevenueSource r) {
+    final cur = context.watch<CurrencyProvider>();
     final color = Color(r.colorValue);
     return Container(
       padding: const EdgeInsets.all(14),
@@ -675,53 +892,34 @@ class _BudgetScreenState extends State<BudgetScreen>
         Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: color.withOpacity(0.12)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: color.withOpacity(0.12)),
             child: Icon(_iconFromName(r.iconName), color: color, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r.source,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(r.source, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 3),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: color.withOpacity(0.1)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), color: color.withOpacity(0.1)),
                 child: Text(r.type, style: TextStyle(color: color, fontSize: 10)),
               ),
             ]),
           ),
           const SizedBox(width: 8),
-          Text('+ ${r.amount.toStringAsFixed(0)} TND',
-              style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w700)),
+          Text('+ ${cur.format(r.amount)}', style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           GestureDetector(
             onTap: () => _editRevenue(r),
-            child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                  color: const Color(0xFF3EFFA8).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.edit_rounded, color: Color(0xFF3EFFA8), size: 16),
-            ),
+            child: Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: const Color(0xFF3EFFA8).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.edit_rounded, color: Color(0xFF3EFFA8), size: 16)),
           ),
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () => _deleteRevenue(r),
-            child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                  color: const Color(0xFFFF5C7A).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.delete_rounded, color: Color(0xFFFF5C7A), size: 16),
-            ),
+            child: Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: const Color(0xFFFF5C7A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_rounded, color: Color(0xFFFF5C7A), size: 16)),
           ),
         ]),
       ]),
@@ -732,8 +930,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0B1535),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       isScrollControlled: true,
       builder: (_) => _AddExpenseSheet(
         categories: _categories,
@@ -743,15 +940,14 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-//  EDIT TRANSACTION DIALOG
-// ══════════════════════════════════════════════════════════════
+// ==============================================================
+//  EDIT TRANSACTION DIALOG (corrigé — nullable firstWhere)
+// ==============================================================
 class _EditTransactionDialog extends StatefulWidget {
   final TransactionSnapshot transaction;
   final List<BudgetCategory> categories;
 
-  const _EditTransactionDialog(
-      {required this.transaction, required this.categories});
+  const _EditTransactionDialog({required this.transaction, required this.categories});
 
   @override
   State<_EditTransactionDialog> createState() => _EditTransactionDialogState();
@@ -761,7 +957,11 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
   late TextEditingController _labelCtrl;
   late TextEditingController _amountCtrl;
   late TextEditingController _noteCtrl;
-  late String _selectedCategory;
+  late String _selectedCategoryId;
+  late String _selectedCategoryName;
+
+  @override
+  bool _labelInitialized = false;
 
   @override
   void initState() {
@@ -770,10 +970,31 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
     _amountCtrl = TextEditingController(text: widget.transaction.amount.toString());
     _noteCtrl = TextEditingController(text: widget.transaction.note ?? '');
 
-    // ✅ FIX BUG 1 — Fallback si la catégorie sauvegardée n'existe plus dans la liste
-    _selectedCategory = widget.categories.any((c) => c.name == widget.transaction.category)
-        ? widget.transaction.category
-        : (widget.categories.isNotEmpty ? widget.categories.first.name : '');
+    // Match par iconName (nouveau format) ou par name (ancien format)
+    final matchingCat = widget.categories.cast<BudgetCategory?>().firstWhere(
+          (c) => c!.iconName == widget.transaction.category ||
+                 c!.name == widget.transaction.category,
+      orElse: () => widget.categories.isNotEmpty ? widget.categories.first : null,
+    );
+    if (matchingCat != null) {
+      _selectedCategoryId = matchingCat.id;
+      _selectedCategoryName = matchingCat.name;
+    } else {
+      _selectedCategoryId = '';
+      _selectedCategoryName = '';
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_labelInitialized) {
+      _labelInitialized = true;
+      final l10n = AppLocalizations.of(context);
+      // Pré-remplir avec le libellé résolu (traduit si auto-généré en français)
+      _labelCtrl.text = CategoryTranslator.resolveLabel(
+          widget.transaction.label, widget.transaction.category, l10n);
+    }
   }
 
   @override
@@ -786,111 +1007,97 @@ class _EditTransactionDialogState extends State<_EditTransactionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
       backgroundColor: const Color(0xFF0B1535),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF1A2E52)),
-      ),
-      title: const Text('Modifier la transaction',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(l10n.budgetAddTransaction, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-            controller: _labelCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: 'Libellé',
-              labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-            ),
-          ),
+          TextField(controller: _labelCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetTransactionLabel)),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _selectedCategory.isNotEmpty ? _selectedCategory : null,
+          DropdownButtonFormField<BudgetCategory?>(
+            value: _selectedCategoryId.isNotEmpty
+                ? widget.categories.cast<BudgetCategory?>().firstWhere(
+                  (c) => c!.id == _selectedCategoryId,
+              orElse: () => null,
+            )
+                : null,
             dropdownColor: const Color(0xFF0D1B38),
             style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: 'Catégorie',
-              labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-            ),
-            items: widget.categories
-                .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
-                .toList(),
-            // ✅ FIX BUG 1 — Si le libellé était identique à l'ancienne catégorie
-            // (label auto-généré), on le met à jour avec la nouvelle catégorie.
-            // Sinon on garde le libellé personnalisé de l'utilisateur.
-            onChanged: (v) {
-              setState(() {
-                _labelCtrl.text = 'Dépense $v';
-                _selectedCategory = v!;
-              });
+            decoration: InputDecoration(labelText: l10n.budgetNoCategoryTitle),
+            items: widget.categories.map((c) {
+              return DropdownMenuItem<BudgetCategory?>(
+                value: c,
+                child: Row(children: [
+                  Icon(_iconFromName(c.iconName), size: 18, color: Color(c.colorValue)),
+                  const SizedBox(width: 8),
+                  Text(CategoryTranslator.byIconName(c.iconName, l10n)),
+                ]),
+              );
+            }).toList(),
+            onChanged: (BudgetCategory? newCat) {
+              if (newCat != null) {
+                setState(() {
+                  _selectedCategoryId = newCat.id;
+                  _selectedCategoryName = newCat.name;
+                  if (!widget.transaction.isIncome && (_labelCtrl.text.isEmpty || _labelCtrl.text == widget.transaction.label)) {
+                    _labelCtrl.text = CategoryTranslator.byIconName(newCat.iconName, AppLocalizations.of(context));
+                  }
+                });
+              }
             },
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _amountCtrl,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: 'Montant (TND)',
-              labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-            ),
-          ),
+          TextField(controller: _amountCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetTransactionAmount)),
           const SizedBox(height: 12),
-          TextField(
-            controller: _noteCtrl,
-            style: const TextStyle(color: Colors.white),
-            maxLines: 2,
-            decoration: InputDecoration(
-              labelText: 'Note (optionnel)',
-              labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-            ),
-          ),
+          TextField(controller: _noteCtrl, maxLines: 2, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetTransactionNote)),
         ]),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, null),
-          child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
-        ),
+        TextButton(onPressed: () => Navigator.pop(context, null), child: Text(l10n.cancel)),
         ElevatedButton(
           onPressed: () {
             final amount = double.tryParse(_amountCtrl.text);
-            if (amount != null && amount > 0 && _labelCtrl.text.isNotEmpty) {
+            if (amount != null && amount > 0 && _labelCtrl.text.isNotEmpty && _selectedCategoryId.isNotEmpty) {
               Navigator.pop(context, {
                 'label': _labelCtrl.text,
                 'amount': amount,
-                'category': _selectedCategory,
+                'categoryId': _selectedCategoryId,
+                'categoryName': _selectedCategoryName,
                 'note': _noteCtrl.text,
               });
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Veuillez remplir tous les champs'),
-                backgroundColor: Color(0xFFFF5C7A),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.errorGeneric), backgroundColor: const Color(0xFFFF5C7A)));
             }
           },
-          style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3EFFA8),
-              foregroundColor: const Color(0xFF060D1F)),
-          child: const Text('Enregistrer'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3EFFA8), foregroundColor: const Color(0xFF060D1F)),
+          child: Text(l10n.save),
         ),
       ],
     );
   }
+
+  IconData _iconFromName(String name) {
+    const map = {
+      'restaurant': Icons.restaurant_rounded,
+      'directions_bus': Icons.directions_bus_rounded,
+      'movie': Icons.movie_rounded,
+      'menu_book': Icons.menu_book_rounded,
+      'favorite': Icons.favorite_rounded,
+      'category': Icons.category_rounded,
+      'school': Icons.school_rounded,
+      'work': Icons.work_rounded,
+      'family_restroom': Icons.family_restroom_rounded,
+      'attach_money': Icons.attach_money_rounded,
+    };
+    return map[name] ?? Icons.category_rounded;
+  }
 }
 
-// ══════════════════════════════════════════════════════════════
+// ==============================================================
 //  EDIT REVENUE DIALOG
-// ══════════════════════════════════════════════════════════════
+// ==============================================================
 class _EditRevenueDialog extends StatefulWidget {
   final RevenueSource revenue;
   const _EditRevenueDialog({required this.revenue});
@@ -922,89 +1129,45 @@ class _EditRevenueDialogState extends State<_EditRevenueDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
       backgroundColor: const Color(0xFF0B1535),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFF1A2E52)),
-      ),
-      title: const Text('Modifier le revenu',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(l10n.budgetDeleteRevenue, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(
-          controller: _sourceCtrl,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: 'Source',
-            labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-          ),
-        ),
+        TextField(controller: _sourceCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetRevenueSource)),
         const SizedBox(height: 12),
-        TextField(
-          controller: _amountCtrl,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: 'Montant (TND)',
-            labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-          ),
-        ),
+        TextField(controller: _amountCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetTransactionAmount)),
         const SizedBox(height: 12),
-        TextField(
-          controller: _typeCtrl,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: 'Fréquence',
-            labelStyle: const TextStyle(color: Color(0xFF8BA8D4)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-          ),
-        ),
+        TextField(controller: _typeCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: l10n.budgetRevenueType)),
       ]),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, null),
-          child: const Text('Annuler', style: TextStyle(color: Color(0xFF8BA8D4))),
-        ),
+        TextButton(onPressed: () => Navigator.pop(context, null), child: Text(l10n.cancel)),
         ElevatedButton(
           onPressed: () {
             final amount = double.tryParse(_amountCtrl.text);
             if (amount != null && amount > 0 && _sourceCtrl.text.isNotEmpty) {
-              Navigator.pop(context, {
-                'source': _sourceCtrl.text,
-                'amount': amount,
-                'type': _typeCtrl.text,
-              });
+              Navigator.pop(context, {'source': _sourceCtrl.text, 'amount': amount, 'type': _typeCtrl.text});
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Veuillez remplir tous les champs'),
-                backgroundColor: Color(0xFFFF5C7A),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.errorGeneric), backgroundColor: const Color(0xFFFF5C7A)));
             }
           },
-          style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3EFFA8),
-              foregroundColor: const Color(0xFF060D1F)),
-          child: const Text('Enregistrer'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3EFFA8), foregroundColor: const Color(0xFF060D1F)),
+          child: Text(l10n.save),
         ),
       ],
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ADD EXPENSE SHEET
-// ══════════════════════════════════════════════════════════════
+// ==============================================================
+//  ADD EXPENSE SHEET (corrigé — nullable firstWhere)
+// ==============================================================
 class _AddExpenseSheet extends StatefulWidget {
   final List<BudgetCategory> categories;
   final VoidCallback onTransactionAdded;
 
-  const _AddExpenseSheet(
-      {required this.categories, required this.onTransactionAdded});
+  const _AddExpenseSheet({required this.categories, required this.onTransactionAdded});
 
   @override
   State<_AddExpenseSheet> createState() => _AddExpenseSheetState();
@@ -1012,7 +1175,7 @@ class _AddExpenseSheet extends StatefulWidget {
 
 class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   int _typeIndex = 0;
-  String? _selectedCategory;
+  String? _selectedCategoryId;
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _sourceCtrl = TextEditingController();
@@ -1029,18 +1192,18 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   }
 
   Future<void> _saveTransaction() async {
-    final amount =
-    double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.'));
+    final l10n = AppLocalizations.of(context);
+    final amount = double.tryParse(_amountCtrl.text.trim().replaceAll(',', '.'));
     if (amount == null || amount <= 0) {
-      _showError('Montant invalide');
+      _showError(l10n.errorInvalidAmount);
       return;
     }
-    if (_typeIndex == 0 && _selectedCategory == null) {
-      _showError('Veuillez sélectionner une catégorie');
+    if (_typeIndex == 0 && _selectedCategoryId == null) {
+      _showError(l10n.errorRequired);
       return;
     }
     if (_typeIndex == 1 && _sourceCtrl.text.trim().isEmpty) {
-      _showError('Veuillez indiquer la source du revenu');
+      _showError(l10n.errorRequired);
       return;
     }
 
@@ -1048,20 +1211,21 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     try {
       if (_typeIndex == 0) {
         await _transactionService.addExpense(
-          category: _selectedCategory!,
+          categoryId: _selectedCategoryId!,
           amount: amount,
           note: _noteCtrl.text.trim(),
           date: DateTime.now(),
         );
-        _showSuccess('Dépense ajoutée avec succès');
+        _showSuccess(l10n.budgetDeleteSuccess);
       } else {
         await _transactionService.addRevenue(
           source: _sourceCtrl.text.trim(),
           amount: amount,
           type: 'Mensuel',
           date: DateTime.now(),
+          note: _noteCtrl.text.trim(),
         );
-        _showSuccess('Revenu ajouté avec succès');
+        _showSuccess(l10n.budgetDeleteSuccess);
       }
       widget.onTransactionAdded();
       Navigator.pop(context);
@@ -1072,16 +1236,12 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     }
   }
 
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: const Color(0xFFFF5C7A),
-          behavior: SnackBarBehavior.floating));
-
-  void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: const Color(0xFF3EFFA8),
-          behavior: SnackBarBehavior.floating));
+  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: const Color(0xFFFF5C7A), behavior: SnackBarBehavior.floating));
+  void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: const Color(0xFF3EFFA8), behavior: SnackBarBehavior.floating));
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -1090,69 +1250,59 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: const Color(0xFF1A2E52),
-                    borderRadius: BorderRadius.circular(2)))),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFF1A2E52), borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 20),
-            const Text('Nouvelle transaction',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+            Text(l10n.budgetAddTransaction, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 20),
             Row(children: [
-              _typeBtn(0, 'Dépense', const Color(0xFFFF5C7A)),
+              _typeBtn(0, l10n.budgetSpent, const Color(0xFFFF5C7A)),
               const SizedBox(width: 10),
-              _typeBtn(1, 'Revenu', const Color(0xFF3EFFA8)),
+              _typeBtn(1, l10n.budgetTabRevenues, const Color(0xFF3EFFA8)),
             ]),
             const SizedBox(height: 16),
             if (_typeIndex == 0) ...[
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
+              DropdownButtonFormField<BudgetCategory?>(
+                value: _selectedCategoryId != null
+                    ? widget.categories.cast<BudgetCategory?>().firstWhere(
+                      (c) => c!.id == _selectedCategoryId,
+                  orElse: () => null,
+                )
+                    : null,
                 dropdownColor: const Color(0xFF0D1B38),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: _fieldDeco('Catégorie', Icons.category_rounded),
-                items: widget.categories
-                    .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v),
+                decoration: _fieldDeco(l10n.budgetNoCategoryTitle, Icons.category_rounded),
+                items: widget.categories.map((c) {
+                  return DropdownMenuItem<BudgetCategory?>(
+                    value: c,
+                    child: Row(children: [
+                      Icon(_iconFromName(c.iconName), size: 18, color: Color(c.colorValue)),
+                      const SizedBox(width: 8),
+                      Text(CategoryTranslator.byIconName(c.iconName, l10n)),
+                    ]),
+                  );
+                }).toList(),
+                onChanged: (cat) => setState(() => _selectedCategoryId = cat?.id),
               ),
               const SizedBox(height: 12),
             ],
             if (_typeIndex == 1) ...[
-              TextField(
-                controller: _sourceCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: _fieldDeco('Source (ex: Salaire, Bourse)', Icons.business_rounded),
-              ),
+              TextField(controller: _sourceCtrl, style: const TextStyle(color: Colors.white, fontSize: 14), decoration: _fieldDeco(l10n.budgetRevenueSource, Icons.business_rounded)),
               const SizedBox(height: 12),
             ],
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
-              decoration: _fieldDeco('Montant (TND)', Icons.attach_money_rounded),
-            ),
+            TextField(controller: _amountCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white, fontSize: 18), decoration: _fieldDeco(l10n.budgetTransactionAmount, Icons.attach_money_rounded)),
             const SizedBox(height: 12),
-            TextField(
-              controller: _noteCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: _fieldDeco('Description (optionnel)', Icons.edit_note_rounded),
-            ),
+            TextField(controller: _noteCtrl, style: const TextStyle(color: Colors.white), decoration: _fieldDeco(l10n.budgetTransactionNote, Icons.edit_note_rounded)),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity, height: 50,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveTransaction,
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3EFFA8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3EFFA8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: _isLoading
-                    ? const SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF060D1F)))
-                    : const Text('Enregistrer',
-                    style: TextStyle(color: Color(0xFF060D1F),
-                        fontWeight: FontWeight.w700, fontSize: 15)),
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF060D1F)))
+                    : Text(l10n.save, style: const TextStyle(color: Color(0xFF060D1F), fontWeight: FontWeight.w700, fontSize: 15)),
               ),
             ),
-            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -1164,12 +1314,9 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     hintStyle: const TextStyle(color: Color(0xFF3A5068)),
     filled: true, fillColor: const Color(0xFF0D1B38),
     prefixIcon: Icon(icon, color: const Color(0xFF3EFFA8), size: 20),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF1A2E52))),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF3EFFA8), width: 1.5)),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF1A2E52))),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF1A2E52))),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF3EFFA8), width: 1.5)),
   );
 
   Widget _typeBtn(int idx, String label, Color color) {
@@ -1185,11 +1332,25 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
             color: isSelected ? color.withOpacity(0.15) : const Color(0xFF0D1B38),
             border: Border.all(color: isSelected ? color : const Color(0xFF1A2E52)),
           ),
-          child: Center(child: Text(label,
-              style: TextStyle(color: isSelected ? color : const Color(0xFF4A6080),
-                  fontWeight: FontWeight.w600))),
+          child: Center(child: Text(label, style: TextStyle(color: isSelected ? color : const Color(0xFF4A6080), fontWeight: FontWeight.w600))),
         ),
       ),
     );
+  }
+
+  IconData _iconFromName(String name) {
+    const map = {
+      'restaurant': Icons.restaurant_rounded,
+      'directions_bus': Icons.directions_bus_rounded,
+      'movie': Icons.movie_rounded,
+      'menu_book': Icons.menu_book_rounded,
+      'favorite': Icons.favorite_rounded,
+      'category': Icons.category_rounded,
+      'school': Icons.school_rounded,
+      'work': Icons.work_rounded,
+      'family_restroom': Icons.family_restroom_rounded,
+      'attach_money': Icons.attach_money_rounded,
+    };
+    return map[name] ?? Icons.category_rounded;
   }
 }

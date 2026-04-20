@@ -9,16 +9,18 @@ class TransactionService {
 
   String get _userId => _auth.currentUser?.uid ?? '';
 
-  // ─────────────────────────────────────────────────────────────
-  //  AJOUTER UNE TRANSACTION (méthode utilitaire)
-  // ─────────────────────────────────────────────────────────────
+  // ============================================================
+  //  TRANSACTIONS
+  // ============================================================
+
   Future<void> _addTransaction({
     required String label,
     required double amount,
-    required String category,
+    required String categoryId,
     required bool isIncome,
     required DateTime date,
     String? note,
+    String iconName = 'category',
   }) async {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
@@ -33,7 +35,8 @@ class TransactionService {
         'id': transactionRef.id,
         'label': label,
         'amount': amount,
-        'category': category,
+        'categoryId': categoryId,
+        'category': iconName,   // clé canonique (iconName) pour la traduction i18n
         'isIncome': isIncome,
         'date': date.millisecondsSinceEpoch,
         'note': note ?? '',
@@ -47,11 +50,8 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  AJOUTER UNE DÉPENSE
-  // ─────────────────────────────────────────────────────────────
   Future<void> addExpense({
-    required String category,
+    required String categoryId,
     required double amount,
     required String note,
     required DateTime date,
@@ -59,28 +59,34 @@ class TransactionService {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
 
-      // Ajouter la transaction
+      // Récupérer l'iconName (clé canonique i18n) depuis le doc budget
+      final categoryDoc = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(categoryId)
+          .get();
+      final iconName = categoryDoc.exists
+          ? (categoryDoc.data()?['iconName'] ?? 'category')
+          : 'category';
+
       await _addTransaction(
-        label: note.isNotEmpty ? note : 'Dépense $category',
+        label: note,          // label vide si pas de note → affiché traduit côté UI
         amount: amount,
-        category: category,
+        categoryId: categoryId,
         isIncome: false,
         date: date,
         note: note,
+        iconName: iconName,
       );
 
-      // Mettre à jour le budget de la catégorie
-      await _updateBudgetSpent(category, amount);
-
-      print('✅ Dépense ajoutée: $category - $amount TND');
+      await _updateBudgetSpent(categoryId, amount);
+      print('✅ Dépense ajoutée: $iconName - $amount TND');
     } catch (e) {
       throw Exception('Erreur lors de l\'ajout de la dépense: $e');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  AJOUTER UN REVENU (avec transaction automatique)
-  // ─────────────────────────────────────────────────────────────
   Future<void> addRevenue({
     required String source,
     required double amount,
@@ -91,7 +97,6 @@ class TransactionService {
     try {
       if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
 
-      // Seulement la collection revenues, plus de doublon dans transactions
       final revenueRef = _firestore
           .collection('users')
           .doc(_userId)
@@ -105,6 +110,7 @@ class TransactionService {
         'type': type,
         'date': date.millisecondsSinceEpoch,
         'createdAt': FieldValue.serverTimestamp(),
+        'note': note ?? '',
       });
 
       print('✅ Revenu ajouté: $source - $amount TND');
@@ -113,81 +119,187 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  METTRE À JOUR LE BUDGET DÉPENSÉ
-  // ─────────────────────────────────────────────────────────────
-  Future<void> _updateBudgetSpent(String categoryName, double amount) async {
-    try {
-      if (_userId.isEmpty) return;
+  // ============================================================
+  //  GESTION DES BUDGETS (CRUD)
+  // ============================================================
 
-      final budgetQuery = await _firestore
+  /// Ajouter une nouvelle catégorie de budget
+  Future<void> addBudgetCategory({
+    required String name,
+    required double budget,
+    required String iconName,
+    required int colorValue,
+  }) async {
+    try {
+      if (_userId.isEmpty) throw Exception('Utilisateur non connecté');
+
+      final docRef = _firestore
           .collection('users')
           .doc(_userId)
           .collection('budget')
-          .where('name', isEqualTo: categoryName)
+          .doc(); // ID automatique
+
+      await docRef.set({
+        'name': name,
+        'spent': 0.0,
+        'budget': budget,
+        'iconName': iconName,
+        'colorValue': colorValue,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Catégorie budget ajoutée: $name');
+    } catch (e) {
+      throw Exception('Erreur ajout catégorie: $e');
+    }
+  }
+
+  /// Modifier une catégorie de budget
+  Future<void> updateBudgetCategory({
+    required String id,
+    required String name,
+    required double budget,
+    required String iconName,
+    required int colorValue,
+  }) async {
+    try {
+      if (_userId.isEmpty) return;
+
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(id)
+          .update({
+        'name': name,
+        'budget': budget,
+        'iconName': iconName,
+        'colorValue': colorValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Catégorie budget modifiée: $name');
+    } catch (e) {
+      throw Exception('Erreur modification catégorie: $e');
+    }
+  }
+
+  /// Supprimer une catégorie de budget (seulement si aucune transaction associée)
+  Future<void> deleteBudgetCategory(String id) async {
+    try {
+      if (_userId.isEmpty) return;
+
+      // Vérifier s'il existe des transactions liées à cette catégorie
+      final transactionsQuery = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('transactions')
+          .where('categoryId', isEqualTo: id)
           .limit(1)
           .get();
 
-      if (budgetQuery.docs.isNotEmpty) {
-        final budgetDoc = budgetQuery.docs.first;
-        final currentSpent = (budgetDoc.data()['spent'] ?? 0).toDouble();
-        final newSpent = currentSpent + amount;
+      if (transactionsQuery.docs.isNotEmpty) {
+        throw Exception('Impossible de supprimer : des transactions existent pour cette catégorie');
+      }
 
-        await budgetDoc.reference.update({
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(id)
+          .delete();
+
+      print('✅ Catégorie budget supprimée: $id');
+    } catch (e) {
+      throw Exception('Erreur suppression catégorie: $e');
+    }
+  }
+
+  /// Mettre à jour le budget (montant) d'une catégorie (méthode existante, mais avec id)
+  Future<void> updateBudget(String categoryId, double newBudget) async {
+    try {
+      if (_userId.isEmpty) return;
+
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(categoryId)
+          .update({
+        'budget': newBudget,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ Budget mis à jour: $categoryId -> $newBudget');
+    } catch (e) {
+      print('❌ Erreur mise à jour budget: $e');
+      throw Exception('Erreur mise à jour budget: $e');
+    }
+  }
+
+  // ============================================================
+  //  MISE À JOUR DES DÉPENSES (interne)
+  // ============================================================
+
+  Future<void> _updateBudgetSpent(String categoryId, double amount) async {
+    try {
+      if (_userId.isEmpty) return;
+
+      final budgetDoc = _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(categoryId);
+
+      final doc = await budgetDoc.get();
+      if (doc.exists) {
+        final currentSpent = (doc.data()?['spent'] ?? 0).toDouble();
+        final newSpent = currentSpent + amount;
+        await budgetDoc.update({
           'spent': newSpent,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-
-        print('✅ Budget mis à jour: $categoryName - Dépensé: $newSpent TND');
+        print('✅ Budget mis à jour: $categoryId - Dépensé: $newSpent TND');
       } else {
-        print('⚠️ Catégorie non trouvée: $categoryName');
+        print('⚠️ Catégorie non trouvée: $categoryId');
       }
-
     } catch (e) {
       print('❌ Erreur mise à jour budget: $e');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  DÉCRÉMENTER LE BUDGET DÉPENSÉ (suppression de dépense)
-  // ─────────────────────────────────────────────────────────────
-  Future<void> _decrementBudgetSpent(String categoryName, double amount) async {
+  Future<void> _decrementBudgetSpent(String categoryId, double amount) async {
     try {
       if (_userId.isEmpty) return;
 
-      final budgetQuery = await _firestore
+      final budgetDoc = _firestore
           .collection('users')
           .doc(_userId)
           .collection('budget')
-          .where('name', isEqualTo: categoryName)
-          .limit(1)
-          .get();
+          .doc(categoryId);
 
-      if (budgetQuery.docs.isNotEmpty) {
-        final budgetDoc = budgetQuery.docs.first;
-        final currentSpent = (budgetDoc.data()['spent'] ?? 0).toDouble();
+      final doc = await budgetDoc.get();
+      if (doc.exists) {
+        final currentSpent = (doc.data()?['spent'] ?? 0).toDouble();
         final newSpent = (currentSpent - amount).clamp(0.0, double.infinity);
-
-        await budgetDoc.reference.update({
+        await budgetDoc.update({
           'spent': newSpent,
           'updatedAt': FieldValue.serverTimestamp(),
         });
-
-        print('✅ Budget mis à jour (suppression): $categoryName - Dépensé: $newSpent TND');
+        print('✅ Budget mis à jour (suppression): $categoryId - Dépensé: $newSpent TND');
       }
     } catch (e) {
       print('❌ Erreur mise à jour budget (suppression): $e');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  SUPPRIMER UNE TRANSACTION
-  // ─────────────────────────────────────────────────────────────
+  // ============================================================
+  //  SUPPRESSION / MODIFICATION DE TRANSACTIONS
+  // ============================================================
+
   Future<void> deleteTransaction(String transactionId) async {
     try {
       if (_userId.isEmpty) return;
 
-      // Récupérer la transaction avant suppression pour connaître la catégorie et le montant
       final doc = await _firestore
           .collection('users')
           .doc(_userId)
@@ -197,17 +309,15 @@ class TransactionService {
 
       if (doc.exists) {
         final data = doc.data()!;
-        final category = data['category'] as String?;
+        final categoryId = data['categoryId'] as String?;
         final amount = (data['amount'] as num?)?.toDouble() ?? 0;
         final isIncome = data['isIncome'] as bool? ?? false;
 
-        // Si c'est une dépense, décrémenter le budget
-        if (!isIncome && category != null && amount > 0) {
-          await _decrementBudgetSpent(category, amount);
+        if (!isIncome && categoryId != null && amount > 0) {
+          await _decrementBudgetSpent(categoryId, amount);
         }
       }
 
-      // Supprimer la transaction
       await _firestore
           .collection('users')
           .doc(_userId)
@@ -222,20 +332,16 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  MODIFIER UNE TRANSACTION
-  // ─────────────────────────────────────────────────────────────
   Future<void> updateTransaction(
       String transactionId, {
         required String label,
         required double amount,
-        required String category,
+        required String categoryId,
         required String note,
       }) async {
     try {
       if (_userId.isEmpty) return;
 
-      // Récupérer l'ancienne transaction pour ajuster les budgets
       final oldDoc = await _firestore
           .collection('users')
           .doc(_userId)
@@ -246,17 +352,14 @@ class TransactionService {
       if (!oldDoc.exists) return;
 
       final oldData = oldDoc.data()!;
-      final oldCategory = oldData['category'] as String?;
+      final oldCategoryId = oldData['categoryId'] as String?;
       final oldAmount = (oldData['amount'] as num?)?.toDouble() ?? 0;
       final oldIsIncome = oldData['isIncome'] as bool? ?? false;
 
-      // Si c'est une dépense, ajuster les budgets
-      if (!oldIsIncome && oldCategory != null) {
-        // Retirer l'ancien montant
-        await _decrementBudgetSpent(oldCategory, oldAmount);
+      if (!oldIsIncome && oldCategoryId != null) {
+        await _decrementBudgetSpent(oldCategoryId, oldAmount);
       }
 
-      // Mettre à jour la transaction
       await _firestore
           .collection('users')
           .doc(_userId)
@@ -265,14 +368,13 @@ class TransactionService {
           .update({
         'label': label,
         'amount': amount,
-        'category': category,
+        'categoryId': categoryId,
         'note': note,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Si c'est une dépense, ajouter le nouveau montant
       if (!oldIsIncome) {
-        await _updateBudgetSpent(category, amount);
+        await _updateBudgetSpent(categoryId, amount);
       }
 
       print('✅ Transaction modifiée: $transactionId');
@@ -282,20 +384,19 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  SUPPRIMER UN REVENU
-  // ─────────────────────────────────────────────────────────────
+  // ============================================================
+  //  GESTION DES REVENUS (CRUD)
+  // ============================================================
+
   Future<void> deleteRevenue(String revenueId) async {
     try {
       if (_userId.isEmpty) return;
-
       await _firestore
           .collection('users')
           .doc(_userId)
           .collection('revenues')
           .doc(revenueId)
           .delete();
-
       print('✅ Revenu supprimé: $revenueId');
     } catch (e) {
       print('❌ Erreur suppression revenu: $e');
@@ -303,9 +404,6 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  MODIFIER UN REVENU
-  // ─────────────────────────────────────────────────────────────
   Future<void> updateRevenue(
       String revenueId, {
         required String source,
@@ -314,7 +412,6 @@ class TransactionService {
       }) async {
     try {
       if (_userId.isEmpty) return;
-
       await _firestore
           .collection('users')
           .doc(_userId)
@@ -326,7 +423,6 @@ class TransactionService {
         'type': type,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
       print('✅ Revenu modifié: $revenueId');
     } catch (e) {
       print('❌ Erreur modification revenu: $e');
@@ -334,43 +430,12 @@ class TransactionService {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  METTRE À JOUR LE BUDGET D'UNE CATÉGORIE
-  // ─────────────────────────────────────────────────────────────
-  Future<void> updateBudget(String categoryName, double newBudget) async {
-    try {
-      if (_userId.isEmpty) return;
+  // ============================================================
+  //  STREAMS (temps réel)
+  // ============================================================
 
-      final budgetQuery = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('budget')
-          .where('name', isEqualTo: categoryName)
-          .limit(1)
-          .get();
-
-      if (budgetQuery.docs.isNotEmpty) {
-        final budgetDoc = budgetQuery.docs.first;
-        await budgetDoc.reference.update({
-          'budget': newBudget,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        print('✅ Budget mis à jour: $categoryName -> $newBudget');
-      } else {
-        print('⚠️ Catégorie non trouvée: $categoryName');
-      }
-    } catch (e) {
-      print('❌ Erreur mise à jour budget: $e');
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  //  STREAM DES BUDGETS (temps réel)
-  // ─────────────────────────────────────────────────────────────
   Stream<List<BudgetCategory>> getBudgetsStream() {
-    if (_userId.isEmpty) {
-      return Stream.value([]);
-    }
+    if (_userId.isEmpty) return Stream.value([]);
 
     return _firestore
         .collection('users')
@@ -378,54 +443,12 @@ class TransactionService {
         .collection('budget')
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) {
-      final data = doc.data();
-      return BudgetCategory(
-        name: data['name'] ?? '',
-        spent: (data['spent'] ?? 0).toDouble(),
-        budget: (data['budget'] ?? 0).toDouble(),
-        iconName: data['iconName'] ?? 'category',
-        colorValue: data['colorValue'] ?? 0xFF8BA8D4,
-      );
+      return BudgetCategory.fromMap(doc.id, doc.data());
     }).toList());
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  RÉCUPÉRER LES BUDGETS (une fois)
-  // ─────────────────────────────────────────────────────────────
-  Future<List<BudgetCategory>> getBudgets() async {
-    try {
-      if (_userId.isEmpty) return [];
-
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(_userId)
-          .collection('budget')
-          .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return BudgetCategory(
-          name: data['name'] ?? '',
-          spent: (data['spent'] ?? 0).toDouble(),
-          budget: (data['budget'] ?? 0).toDouble(),
-          iconName: data['iconName'] ?? 'category',
-          colorValue: data['colorValue'] ?? 0xFF8BA8D4,
-        );
-      }).toList();
-
-    } catch (e) {
-      print('❌ Erreur récupération budgets: $e');
-      return [];
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  //  STREAM DES TRANSACTIONS (temps réel)
-  // ─────────────────────────────────────────────────────────────
   Stream<List<TransactionSnapshot>> getTransactionsStream() {
-    if (_userId.isEmpty) {
-      return Stream.value([]);
-    }
+    if (_userId.isEmpty) return Stream.value([]);
 
     return _firestore
         .collection('users')
@@ -438,13 +461,8 @@ class TransactionService {
         .toList());
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  STREAM DES REVENUS (temps réel)
-  // ─────────────────────────────────────────────────────────────
   Stream<List<RevenueSource>> getRevenues() {
-    if (_userId.isEmpty) {
-      return Stream.value([]);
-    }
+    if (_userId.isEmpty) return Stream.value([]);
 
     return _firestore
         .collection('users')
@@ -461,13 +479,13 @@ class TransactionService {
         type: data['type'] ?? 'Mensuel',
         iconName: _getIconNameForSource(data['source'] ?? ''),
         colorValue: _getColorForSource(data['source'] ?? ''),
+        date: data['date'] != null ? DateTime.fromMillisecondsSinceEpoch(data['date']) : null,
       );
     }).toList());
   }
+
   Stream<List<RevenueSnapshot>> getRevenuesStream() {
-    if (_userId.isEmpty) {
-      return Stream.value([]);
-    }
+    if (_userId.isEmpty) return Stream.value([]);
 
     return _firestore
         .collection('users')
@@ -479,14 +497,15 @@ class TransactionService {
         .map((doc) => RevenueSnapshot.fromMap(doc.id, doc.data()))
         .toList());
   }
-  // ─────────────────────────────────────────────────────────────
-  //  INITIALISER LES BUDGETS PAR DÉFAUT
-  // ─────────────────────────────────────────────────────────────
+
+  // ============================================================
+  //  INITIALISATION DES BUDGETS PAR DÉFAUT
+  // ============================================================
+
   Future<void> initializeDefaultBudgets() async {
     try {
       if (_userId.isEmpty) return;
 
-      // Vérifier si les budgets existent déjà
       final existingBudgets = await _firestore
           .collection('users')
           .doc(_userId)
@@ -500,12 +519,12 @@ class TransactionService {
       }
 
       final defaultBudgets = [
-        {'name': 'Alimentation', 'spent': 0.0, 'budget': 200.0, 'iconName': 'restaurant', 'colorValue': 0xFFFFB340},
-        {'name': 'Transport', 'spent': 0.0, 'budget': 60.0, 'iconName': 'directions_bus', 'colorValue': 0xFF00D4FF},
-        {'name': 'Loisirs', 'spent': 0.0, 'budget': 70.0, 'iconName': 'movie', 'colorValue': 0xFFFF5C7A},
-        {'name': 'Académique', 'spent': 0.0, 'budget': 100.0, 'iconName': 'menu_book', 'colorValue': 0xFF7B61FF},
-        {'name': 'Santé', 'spent': 0.0, 'budget': 50.0, 'iconName': 'favorite', 'colorValue': 0xFF3EFFA8},
-        {'name': 'Autres', 'spent': 0.0, 'budget': 40.0, 'iconName': 'category', 'colorValue': 0xFF8BA8D4},
+        {'name': 'Alimentation', 'budget': 200.0, 'iconName': 'restaurant', 'colorValue': 0xFFFFB340},
+        {'name': 'Transport', 'budget': 60.0, 'iconName': 'directions_bus', 'colorValue': 0xFF00D4FF},
+        {'name': 'Loisirs', 'budget': 70.0, 'iconName': 'movie', 'colorValue': 0xFFFF5C7A},
+        {'name': 'Académique', 'budget': 100.0, 'iconName': 'menu_book', 'colorValue': 0xFF7B61FF},
+        {'name': 'Santé', 'budget': 50.0, 'iconName': 'favorite', 'colorValue': 0xFF3EFFA8},
+        {'name': 'Autres', 'budget': 40.0, 'iconName': 'category', 'colorValue': 0xFF8BA8D4},
       ];
 
       final batch = _firestore.batch();
@@ -515,11 +534,10 @@ class TransactionService {
             .collection('users')
             .doc(_userId)
             .collection('budget')
-            .doc(budget['name'] as String?);
-
+            .doc(); // ID automatique
         batch.set(docRef, {
           'name': budget['name'],
-          'spent': budget['spent'],
+          'spent': 0.0,
           'budget': budget['budget'],
           'iconName': budget['iconName'],
           'colorValue': budget['colorValue'],
@@ -529,15 +547,15 @@ class TransactionService {
 
       await batch.commit();
       print('✅ Budgets par défaut initialisés');
-
     } catch (e) {
       print('❌ Erreur initialisation budgets: $e');
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  MÉTHODES HELPER POUR LES ICONES ET COULEURS
-  // ─────────────────────────────────────────────────────────────
+  // ============================================================
+  //  MÉTHODES HELPER (icônes, couleurs)
+  // ============================================================
+
   String _getIconNameForSource(String source) {
     if (source.contains('Bourse') || source.contains('bourse')) return 'school';
     if (source.contains('Job') || source.contains('travail')) return 'work';

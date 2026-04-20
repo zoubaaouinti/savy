@@ -3,6 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../models/currency_model.dart';
+import '../../providers/currency_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/auth_service.dart';
 import 'edit_profile_screen.dart';
 import 'help/help_screen.dart';
@@ -10,6 +14,7 @@ import 'security/security_screen.dart';
 import '../../models/profile_models.dart';
 import '../legalScreen/legal_screens.dart';
 import 'backup/backup_screen.dart'; // ← AJOUT IMPORT BACKUP
+import 'package:savy/l10n/app_localizations.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – PROFILE SCREEN
@@ -30,20 +35,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _email = '';
   String _initials = '';
   Uint8List? _photoBytes;
+  Gender _gender = Gender.notSpecified;
+  DateTime? _birthDate;
+
+  // Stats dynamiques
+  int _objectivesCount = 0;
+  int _transactionsCount = 0;
+  int _profileScore = 0;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
     _loadPhotoFromFirestore();
+    _loadStats();
   }
 
   void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       setState(() {
-        _name = user.displayName ?? 'Utilisateur';
         _email = user.email ?? '';
+        _name = user.displayName ?? '';
         _initials = _getInitials(_name);
       });
     }
@@ -67,13 +80,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(user.uid)
           .get();
 
-      if (doc.exists) {
-        final photoBase64 = doc.data()?['photoBase64'] as String?;
-        if (mounted) {
-          setState(() => _photoBytes = photoBase64 != null
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        final photoBase64 = data['photoBase64'] as String?;
+        final firestoreName = data['name'] as String?;
+        final gender = GenderExtension.fromValue(data['gender'] as String?);
+        final birthDateMs = data['birthDate'];
+        final birthDate = birthDateMs != null
+            ? DateTime.fromMillisecondsSinceEpoch(birthDateMs as int)
+            : null;
+        setState(() {
+          _photoBytes = photoBase64 != null
               ? Uint8List.fromList(base64Decode(photoBase64))
-              : null);
-        }
+              : null;
+          if (firestoreName != null && firestoreName.isNotEmpty) {
+            _name = firestoreName;
+            _initials = _getInitials(_name);
+          }
+          _gender = gender;
+          _birthDate = birthDate;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final uid = user.uid;
+      final db = FirebaseFirestore.instance;
+
+      final results = await Future.wait([
+        db.collection('users').doc(uid).collection('objectives').get(),
+        db.collection('users').doc(uid).collection('transactions').get(),
+        db.collection('users').doc(uid).collection('revenues').get(),
+        db.collection('users').doc(uid).collection('budget').get(),
+      ]);
+
+      final objectivesSnap = results[0];
+      final txSnap = results[1];
+      final revenueSnap = results[2];
+      final budgetSnap = results[3];
+
+      double totalIncome = 0;
+      for (final doc in revenueSnap.docs) {
+        totalIncome += ((doc.data())['amount'] ?? 0).toDouble();
+      }
+      double totalExpenses = 0;
+      for (final doc in budgetSnap.docs) {
+        totalExpenses += ((doc.data())['spent'] ?? 0).toDouble();
+      }
+      double totalObjectivesSaved = 0;
+      for (final doc in objectivesSnap.docs) {
+        totalObjectivesSaved += ((doc.data())['currentAmount'] ?? 0).toDouble();
+      }
+
+      int score = 50;
+      if (totalIncome > 0) {
+        final ratio = (totalExpenses + totalObjectivesSaved) / totalIncome;
+        if (ratio <= 0.40) score = 95;
+        else if (ratio <= 0.60) score = 80;
+        else if (ratio <= 0.80) score = 60;
+        else if (ratio <= 1.00) score = 35;
+        else score = 15;
+      }
+
+      if (mounted) {
+        setState(() {
+          _objectivesCount = objectivesSnap.docs.length;
+          _transactionsCount = txSnap.docs.length;
+          _profileScore = score;
+        });
       }
     } catch (_) {}
   }
@@ -85,6 +163,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       uid: user?.uid ?? '',
       name: _name,
       email: _email,
+      gender: _gender,
+      birthDate: _birthDate,
     );
 
     final result = await Navigator.of(context).push<UserProfile>(
@@ -106,6 +186,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _name = result.name;
         _email = result.email;
         _initials = _getInitials(_name);
+        _gender = result.gender;
+        _birthDate = result.birthDate;
       });
       await _loadPhotoFromFirestore();
     }
@@ -128,8 +210,700 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ── Sélecteur de devise ────────────────────────────────────
+  void _showCurrencyPicker(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final searchCtrl = TextEditingController();
+    List<CurrencyInfo> filtered = CurrencyInfo.allCurrencies;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          void onSearch(String q) {
+            final lower = q.toLowerCase();
+            setSheet(() {
+              filtered = q.isEmpty
+                  ? CurrencyInfo.allCurrencies
+                  : CurrencyInfo.allCurrencies
+                      .where((c) =>
+                          c.code.toLowerCase().contains(lower) ||
+                          c.name.toLowerCase().contains(lower))
+                      .toList();
+            });
+          }
+
+          final cur = context.read<CurrencyProvider>();
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.85,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (_, scrollCtrl) => Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF0B1535),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2E52),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.profileSelectCurrency,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text(
+                            l10n.profileCurrencyConvertHint,
+                            style: const TextStyle(
+                                color: Color(0xFF4A6080),
+                                fontSize: 12)),
+                        const SizedBox(height: 14),
+                        // Barre de recherche
+                        TextField(
+                          controller: searchCtrl,
+                          onChanged: onSearch,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: l10n.profileSearchCurrency,
+                            hintStyle: const TextStyle(
+                                color: Color(0xFF3A5068),
+                                fontSize: 14),
+                            prefixIcon: const Icon(Icons.search_rounded,
+                                color: Color(0xFF4A6080), size: 20),
+                            filled: true,
+                            fillColor: const Color(0xFF0D1B38),
+                            contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF1A2E52))),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF1A2E52))),
+                            focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF3EFFA8),
+                                    width: 1.5)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text(l10n.profileNoResults,
+                                style: const TextStyle(
+                                    color: Color(0xFF4A6080),
+                                    fontSize: 13)))
+                        : ListView.builder(
+                            controller: scrollCtrl,
+                            padding: const EdgeInsets.fromLTRB(
+                                20, 0, 20, 32),
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) {
+                              final c = filtered[i];
+                              final isSelected =
+                                  c.code == cur.selected.code;
+                              return GestureDetector(
+                                onTap: () async {
+                                  Navigator.pop(ctx);
+                                  await context
+                                      .read<CurrencyProvider>()
+                                      .setCurrency(c);
+                                },
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 150),
+                                  margin:
+                                      const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius:
+                                        BorderRadius.circular(12),
+                                    color: isSelected
+                                        ? const Color(0xFFFFB340)
+                                            .withOpacity(0.08)
+                                        : const Color(0xFF0D1B38),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFFFFB340)
+                                              .withOpacity(0.5)
+                                          : const Color(0xFF1A2E52),
+                                      width: isSelected ? 1.5 : 1,
+                                    ),
+                                  ),
+                                  child: Row(children: [
+                                    Text(c.flag,
+                                        style: const TextStyle(
+                                            fontSize: 22)),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(c.code,
+                                              style: TextStyle(
+                                                  color: isSelected
+                                                      ? const Color(
+                                                          0xFFFFB340)
+                                                      : Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight:
+                                                      FontWeight.w700)),
+                                          Text(c.name,
+                                              style: const TextStyle(
+                                                  color:
+                                                      Color(0xFF4A6080),
+                                                  fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(c.symbol,
+                                        style: TextStyle(
+                                            color: isSelected
+                                                ? const Color(0xFFFFB340)
+                                                : const Color(0xFF4A6080),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600)),
+                                    if (isSelected) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                          Icons.check_circle_rounded,
+                                          color: Color(0xFFFFB340),
+                                          size: 16),
+                                    ],
+                                  ]),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Sélecteur de langue ────────────────────────────────────
+  void _showLanguagePicker(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF0B1535),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2E52),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                l10n.profileSelectLanguage,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Consumer<LanguageProvider>(
+              builder: (ctx, langProvider, __) {
+                return Column(
+                  children: LanguageProvider.supportedLanguages
+                      .map((lang) {
+                    final isSelected =
+                        langProvider.languageCode == lang.code;
+                    return GestureDetector(
+                      onTap: () {
+                        context
+                            .read<LanguageProvider>()
+                            .setLocale(lang.code);
+                        Navigator.pop(context);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          color: isSelected
+                              ? const Color(0xFF00D4FF).withOpacity(0.08)
+                              : const Color(0xFF0D1B38),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF00D4FF).withOpacity(0.5)
+                                : const Color(0xFF1A2E52),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(children: [
+                          Text(lang.flag,
+                              style: const TextStyle(fontSize: 22)),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              lang.label,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFF00D4FF)
+                                    : Colors.white,
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(Icons.check_circle_rounded,
+                                color: Color(0xFF00D4FF), size: 18),
+                        ]),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Suppression du compte ─────────────────────────────────
+  void _showDeleteAccountSheet() {
+    final l10n = AppLocalizations.of(context);
+
+    final deleteReasons = [
+      l10n.deleteAccountReason1,
+      l10n.deleteAccountReason2,
+      l10n.deleteAccountReason3,
+      l10n.deleteAccountReason4,
+      l10n.deleteAccountReason5,
+    ];
+
+    String? selectedReason;
+    final customCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool isDeleting = false;
+    String? errorMsg;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final confirmOk = confirmCtrl.text.trim().toLowerCase() ==
+              l10n.deleteAccountConfirmWord;
+          final lastReason = deleteReasons.last;
+          final reasonOk = selectedReason != null &&
+              (selectedReason != lastReason ||
+                  customCtrl.text.trim().isNotEmpty);
+          final canDelete = confirmOk && reasonOk && !isDeleting;
+
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF0B1535),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A2E52),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Titre
+                    Row(children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFFF5C7A).withOpacity(0.1),
+                        ),
+                        child: const Icon(Icons.delete_forever_rounded,
+                            color: Color(0xFFFF5C7A), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.deleteAccountTitle,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800)),
+                          Text(l10n.profileDeleteIrreversible,
+                              style: const TextStyle(
+                                  color: Color(0xFFFF5C7A), fontSize: 11)),
+                        ],
+                      ),
+                    ]),
+                    const SizedBox(height: 20),
+
+                    // Raisons
+                    Text(l10n.deleteAccountReasonTitle,
+                        style: const TextStyle(
+                            color: Color(0xFF8BA8D4),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 10),
+
+                    ...deleteReasons.map((reason) {
+                      final isSelected = selectedReason == reason;
+                      return GestureDetector(
+                        onTap: () => setSheet(() => selectedReason = reason),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: isSelected
+                                ? const Color(0xFFFF5C7A).withOpacity(0.07)
+                                : const Color(0xFF0D1B38),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFFFF5C7A).withOpacity(0.5)
+                                  : const Color(0xFF1A2E52),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 18, height: 18,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? const Color(0xFFFF5C7A)
+                                      : const Color(0xFF3A5070),
+                                  width: 2,
+                                ),
+                                color: isSelected
+                                    ? const Color(0xFFFF5C7A)
+                                    : Colors.transparent,
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check,
+                                      color: Colors.white, size: 11)
+                                  : null,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(reason,
+                                style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF8BA8D4),
+                                    fontSize: 13,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400)),
+                          ]),
+                        ),
+                      );
+                    }),
+
+                    // Textarea si dernière option (Autres)
+                    if (selectedReason == lastReason) ...[
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: customCtrl,
+                        maxLines: 3,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 13),
+                        onChanged: (_) => setSheet(() {}),
+                        decoration: InputDecoration(
+                          hintText: l10n.deleteAccountOtherHint,
+                          hintStyle: const TextStyle(
+                              color: Color(0xFF3A5068), fontSize: 13),
+                          filled: true,
+                          fillColor: const Color(0xFF0D1B38),
+                          contentPadding: const EdgeInsets.all(14),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFF1A2E52))),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFF1A2E52))),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFFF5C7A), width: 1.5)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ] else
+                      const SizedBox(height: 12),
+
+                    // Avertissement
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFF5C7A).withOpacity(0.07),
+                        border: Border.all(
+                            color: const Color(0xFFFF5C7A).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded,
+                              color: Color(0xFFFF5C7A), size: 16),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              l10n.deleteAccountWarning,
+                              style: const TextStyle(
+                                  color: Color(0xFFFF5C7A),
+                                  fontSize: 12,
+                                  height: 1.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Champ de confirmation
+                    Text(l10n.deleteAccountConfirmLabel,
+                        style: const TextStyle(
+                            color: Color(0xFF8BA8D4),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: confirmCtrl,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 14),
+                      onChanged: (_) => setSheet(() {}),
+                      decoration: InputDecoration(
+                        hintText: l10n.deleteAccountConfirmHint,
+                        hintStyle: const TextStyle(
+                            color: Color(0xFF3A5068), fontSize: 14),
+                        filled: true,
+                        fillColor: const Color(0xFF0D1B38),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 16),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFF1A2E52))),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFF1A2E52))),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: confirmOk
+                                    ? const Color(0xFFFF5C7A)
+                                    : const Color(0xFF1A2E52),
+                                width: 1.5)),
+                      ),
+                    ),
+
+                    if (errorMsg != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: const Color(0xFFFF5C7A).withOpacity(0.08),
+                          border: Border.all(
+                              color:
+                                  const Color(0xFFFF5C7A).withOpacity(0.4)),
+                        ),
+                        child: Text(errorMsg!,
+                            style: const TextStyle(
+                                color: Color(0xFFFF5C7A), fontSize: 12)),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    // Bouton supprimer
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: AnimatedOpacity(
+                        opacity: canDelete ? 1.0 : 0.4,
+                        duration: const Duration(milliseconds: 200),
+                        child: ElevatedButton(
+                          onPressed: canDelete
+                              ? () async {
+                                  setSheet(() {
+                                    isDeleting = true;
+                                    errorMsg = null;
+                                  });
+                                  final reason =
+                                      selectedReason == lastReason
+                                          ? customCtrl.text.trim()
+                                          : selectedReason!;
+                                  final err =
+                                      await _deleteAccount(reason);
+                                  if (err != null) {
+                                    setSheet(() {
+                                      isDeleting = false;
+                                      errorMsg = err;
+                                    });
+                                  }
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF5C7A),
+                            disabledBackgroundColor:
+                                const Color(0xFFFF5C7A),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: isDeleting
+                              ? const SizedBox(
+                                  width: 22, height: 22,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor: AlwaysStoppedAnimation(
+                                          Colors.white)))
+                              : Text(l10n.deleteAccountButton,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<String?> _deleteAccount(String reason) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return l10n.profileDeleteErrorUserNotFound;
+      final uid = user.uid;
+      final db = FirebaseFirestore.instance;
+
+      // Supprimer toutes les sous-collections
+      for (final col in [
+        'revenues',
+        'budget',
+        'transactions',
+        'objectives',
+      ]) {
+        final snap = await db
+            .collection('users')
+            .doc(uid)
+            .collection(col)
+            .get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // Supprimer le document utilisateur
+      await db.collection('users').doc(uid).delete();
+
+      // Supprimer le compte Firebase Auth
+      await user.delete();
+
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+            '/login', (_) => false);
+      }
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        return l10n.profileDeleteErrorSessionExpired;
+      }
+      return '${l10n.profileDeleteErrorAuth}: ${e.message}';
+    } catch (e) {
+      return l10n.profileDeleteErrorGeneric;
+    }
+  }
+
   // ── Déconnexion ───────────────────────────────────────────
   Future<void> _handleLogout() async {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -155,16 +929,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Color(0xFFFF5C7A), size: 26),
               ),
               const SizedBox(height: 16),
-              const Text('Se déconnecter ?',
-                  style: TextStyle(
+              Text(l10n.profileLogoutTitle,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
-              const Text(
-                'Vous devrez vous reconnecter pour accéder à vos données.',
+              Text(
+                l10n.profileLogoutMessage,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                     color: Color(0xFF6B8CAE), fontSize: 13, height: 1.5),
               ),
               const SizedBox(height: 24),
@@ -179,8 +953,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Annuler',
-                          style: TextStyle(
+                      child: Text(l10n.cancel,
+                          style: const TextStyle(
                               color: Color(0xFF8BA8D4),
                               fontWeight: FontWeight.w600)),
                     ),
@@ -202,8 +976,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Déconnecter',
-                          style: TextStyle(
+                      child: Text(l10n.profileLogout,
+                          style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700)),
                     ),
@@ -219,6 +993,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
       body: SafeArea(
@@ -228,29 +1003,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(l10n),
               const SizedBox(height: 24),
               _buildProfileCard(),
               const SizedBox(height: 20),
-              _buildStatsRow(),
+              _buildStatsRow(l10n),
               const SizedBox(height: 20),
 
               // ── Section Compte ─────────────────────────
-              _buildSectionLabel('Compte'),
+              _buildSectionLabel(l10n.profileSectionAccount),
               _buildSettingsGroup([
                 _SettingItem(
                     icon: Icons.person_outline_rounded,
-                    label: 'Modifier le profil',
+                    label: l10n.profileEditProfile,
                     color: const Color(0xFF3EFFA8),
                     onTap: _goToEditProfile),
                 _SettingItem(
                     icon: Icons.notifications_outlined,
-                    label: 'Notifications',
+                    label: l10n.profileNotifications,
                     color: const Color(0xFF00D4FF),
                     trailing: _toggleWidget(true)),
                 _SettingItem(
                     icon: Icons.lock_outline_rounded,
-                    label: 'Sécurité et mot de passe',
+                    label: l10n.profileSecurity,
                     color: const Color(0xFF7B61FF),
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
@@ -269,48 +1044,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 16),
 
               // ── Section Préférences ────────────────────
-              _buildSectionLabel('Préférences'),
+              _buildSectionLabel(l10n.profileSectionPreferences),
               _buildSettingsGroup([
                 _SettingItem(
                     icon: Icons.currency_exchange_rounded,
-                    label: 'Devise',
+                    label: l10n.profileCurrency,
                     color: const Color(0xFFFFB340),
-                    trailing: const Text('TND',
-                        style: TextStyle(
-                            color: Color(0xFFFFB340), fontSize: 13))),
+                    onTap: () => _showCurrencyPicker(context),
+                    trailing: Consumer<CurrencyProvider>(
+                      builder: (_, cur, __) => Text(
+                        '${cur.selected.flag} ${cur.selected.code}',
+                        style: const TextStyle(
+                            color: Color(0xFFFFB340), fontSize: 13),
+                      ),
+                    )),
                 _SettingItem(
                     icon: Icons.language_rounded,
-                    label: 'Langue',
+                    label: l10n.profileLanguage,
                     color: const Color(0xFF00D4FF),
-                    trailing: const Text('Français',
-                        style: TextStyle(
-                            color: Color(0xFF00D4FF), fontSize: 13))),
+                    onTap: () => _showLanguagePicker(context),
+                    trailing: Consumer<LanguageProvider>(
+                      builder: (_, langProvider, __) {
+                        final current = LanguageProvider.supportedLanguages
+                            .firstWhere(
+                              (l) => l.code == langProvider.languageCode,
+                              orElse: () =>
+                                  LanguageProvider.supportedLanguages.first,
+                            );
+                        return Text(
+                          '${current.flag} ${current.label}',
+                          style: const TextStyle(
+                              color: Color(0xFF00D4FF), fontSize: 13),
+                        );
+                      },
+                    )),
               ]),
               const SizedBox(height: 16),
 
               // ── Section Données — bouton fusionné ──────
-              _buildSectionLabel('Données'),
+              _buildSectionLabel(l10n.profileSectionData),
               _buildSettingsGroup([
                 _SettingItem(
                   icon: Icons.cloud_upload_outlined,
-                  label: 'Sauvegarder & Exporter mes données',
+                  label: l10n.profileBackup,
                   color: const Color(0xFF3EFFA8),
-                  onTap: _goToBackup, // ← navigation vers BackupScreen
+                  onTap: _goToBackup,
                 ),
                 _SettingItem(
-                  icon: Icons.delete_outline_rounded,
-                  label: 'Supprimer les données',
+                  icon: Icons.delete_forever_rounded,
+                  label: l10n.profileDeleteAccount,
                   color: const Color(0xFFFF5C7A),
+                  onTap: _showDeleteAccountSheet,
                 ),
               ]),
               const SizedBox(height: 16),
 
               // ── Section Support ────────────────────────
-              _buildSectionLabel('Support'),
+              _buildSectionLabel(l10n.profileSectionSupport),
               _buildSettingsGroup([
                 _SettingItem(
                     icon: Icons.help_outline_rounded,
-                    label: 'Aide et FAQ',
+                    label: l10n.profileHelp,
                     color: const Color(0xFF8BA8D4),
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
@@ -327,7 +1121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     )),
                 _SettingItem(
                     icon: Icons.gavel_rounded,
-                    label: 'Conditions d\'utilisation',
+                    label: l10n.profileTermsLabel,
                     color: const Color(0xFF4A6080),
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
@@ -344,7 +1138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     )),
                 _SettingItem(
                     icon: Icons.shield_outlined,
-                    label: 'Politique de confidentialité',
+                    label: l10n.profilePrivacyLabel,
                     color: const Color(0xFF4A6080),
                     onTap: () => Navigator.of(context).push(
                       PageRouteBuilder(
@@ -361,12 +1155,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     )),
                 _SettingItem(
                     icon: Icons.info_outline_rounded,
-                    label: 'Version 1.0.0',
+                    label: l10n.profileVersion,
                     color: const Color(0xFF3A5070),
                     showArrow: false),
               ]),
               const SizedBox(height: 24),
-              _buildLogoutButton(),
+              _buildLogoutButton(l10n),
             ],
           ),
         ),
@@ -376,10 +1170,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Widgets ───────────────────────────────────────────────
 
-  Widget _buildHeader() {
-    return const Text(
-      'Profil',
-      style: TextStyle(
+  Widget _buildHeader(AppLocalizations l10n) {
+    return Text(
+      l10n.profileTitle,
+      style: const TextStyle(
           color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
     );
   }
@@ -510,19 +1304,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(AppLocalizations l10n) {
     return Row(
       children: [
         Expanded(
-            child: _buildStatTile('Objectifs', '3',
+            child: _buildStatTile(l10n.profileObjectivesStat, '$_objectivesCount',
                 Icons.flag_rounded, const Color(0xFF3EFFA8))),
         const SizedBox(width: 10),
         Expanded(
-            child: _buildStatTile('Transactions', '47',
+            child: _buildStatTile(l10n.profileTransactionsStat, '$_transactionsCount',
                 Icons.receipt_long_rounded, const Color(0xFF00D4FF))),
         const SizedBox(width: 10),
         Expanded(
-            child: _buildStatTile('Score', '74/100',
+            child: _buildStatTile(l10n.profileHealthScore, '$_profileScore/100',
                 Icons.favorite_rounded, const Color(0xFFFFB340))),
       ],
     );
@@ -632,7 +1426,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -643,14 +1437,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.logout_rounded, color: Color(0xFFFF5C7A), size: 18),
-            SizedBox(width: 8),
+            const Icon(Icons.logout_rounded, color: Color(0xFFFF5C7A), size: 18),
+            const SizedBox(width: 8),
             Text(
-              'Se déconnecter',
-              style: TextStyle(
+              l10n.profileLogout,
+              style: const TextStyle(
                   color: Color(0xFFFF5C7A),
                   fontSize: 15,
                   fontWeight: FontWeight.w700),

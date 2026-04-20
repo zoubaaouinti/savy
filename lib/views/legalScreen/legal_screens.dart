@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:savy/l10n/app_localizations.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – LEGAL PAGES
@@ -136,19 +137,42 @@ class _LegalScreenState extends State<_LegalScreen>
   }
 
   // ── Content data ─────────────────────────────────────────
-  String get _title => widget.type == LegalType.terms
-      ? "Conditions d'utilisation"
-      : "Politique de confidentialité";
+  String _title(AppLocalizations l10n) => widget.type == LegalType.terms
+      ? l10n.legalTermsTitle
+      : l10n.legalPrivacyTitle;
 
-  String get _lastUpdated => "Dernière mise à jour : 1er janvier 2025";
+  String _lastUpdated(AppLocalizations l10n) => l10n.legalLastUpdated;
 
-  List<_LegalSection> get _sections => widget.type == LegalType.terms
-      ? _termsSections
-      : _privacySections;
+  List<_LegalSection> _getSections(AppLocalizations l10n) {
+    if (widget.type == LegalType.terms) {
+      return [
+        _LegalSection(title: l10n.legalTermsS1Title, content: l10n.legalTermsS1Content, icon: Icons.handshake_outlined),
+        _LegalSection(title: l10n.legalTermsS2Title, content: l10n.legalTermsS2Content, icon: Icons.description_outlined),
+        _LegalSection(title: l10n.legalTermsS3Title, content: l10n.legalTermsS3Content, icon: Icons.person_outline_rounded),
+        _LegalSection(title: l10n.legalTermsS4Title, content: l10n.legalTermsS4Content, icon: Icons.rule_outlined),
+        _LegalSection(title: l10n.legalTermsS5Title, content: l10n.legalTermsS5Content, icon: Icons.account_balance_outlined),
+        _LegalSection(title: l10n.legalTermsS6Title, content: l10n.legalTermsS6Content, icon: Icons.copyright_outlined),
+        _LegalSection(title: l10n.legalTermsS7Title, content: l10n.legalTermsS7Content, icon: Icons.security_outlined),
+        _LegalSection(title: l10n.legalTermsS8Title, content: l10n.legalTermsS8Content, icon: Icons.edit_note_outlined),
+      ];
+    } else {
+      return [
+        _LegalSection(title: l10n.legalPrivacyS1Title, content: l10n.legalPrivacyS1Content, icon: Icons.data_usage_outlined),
+        _LegalSection(title: l10n.legalPrivacyS2Title, content: l10n.legalPrivacyS2Content, icon: Icons.manage_search_outlined),
+        _LegalSection(title: l10n.legalPrivacyS3Title, content: l10n.legalPrivacyS3Content, icon: Icons.share_outlined),
+        _LegalSection(title: l10n.legalPrivacyS4Title, content: l10n.legalPrivacyS4Content, icon: Icons.lock_outline_rounded),
+        _LegalSection(title: l10n.legalPrivacyS5Title, content: l10n.legalPrivacyS5Content, icon: Icons.schedule_outlined),
+        _LegalSection(title: l10n.legalPrivacyS6Title, content: l10n.legalPrivacyS6Content, icon: Icons.gavel_rounded),
+        _LegalSection(title: l10n.legalPrivacyS7Title, content: l10n.legalPrivacyS7Content, icon: Icons.cookie_outlined),
+        _LegalSection(title: l10n.legalPrivacyS8Title, content: l10n.legalPrivacyS8Content, icon: Icons.public_outlined),
+      ];
+    }
+  }
 
   // ── Build ─────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final isTablet = size.shortestSide > 600;
     final hPad = isTablet ? size.width * 0.15 : 22.0;
@@ -183,7 +207,7 @@ class _LegalScreenState extends State<_LegalScreen>
               child: Column(
                 children: [
                   // ── Top bar ──────────────────────────────
-                  _buildTopBar(context, hPad),
+                  _buildTopBar(context, hPad, l10n),
 
                   // ── Scroll progress bar ──────────────────
                   _buildProgressBar(),
@@ -197,11 +221,11 @@ class _LegalScreenState extends State<_LegalScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildHeroHeader(size),
+                          _buildHeroHeader(size, l10n),
                           const SizedBox(height: 28),
-                          ..._sections.map((s) => _buildSection(s)),
+                          ..._getSections(l10n).map((s) => _buildSection(s)),
                           const SizedBox(height: 16),
-                          _buildFooterNote(),
+                          _buildFooterNote(l10n),
                           const SizedBox(height: 100), // space for button
                         ],
                       ),
@@ -217,14 +241,14 @@ class _LegalScreenState extends State<_LegalScreen>
             left: 0,
             right: 0,
             bottom: 0,
-            child: _buildBottomButton(hPad),
+            child: _buildBottomButton(hPad, l10n),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context, double hPad) {
+  Widget _buildTopBar(BuildContext context, double hPad, AppLocalizations l10n) {
     return Padding(
       padding: EdgeInsets.fromLTRB(hPad - 4, 12, hPad, 4),
       child: Row(
@@ -250,7 +274,7 @@ class _LegalScreenState extends State<_LegalScreen>
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              _title,
+              _title(l10n),
               style: const TextStyle(
                 color: Color(0xFF8BA8D4),
                 fontSize: 14,
@@ -317,7 +341,7 @@ class _LegalScreenState extends State<_LegalScreen>
     );
   }
 
-  Widget _buildHeroHeader(Size size) {
+  Widget _buildHeroHeader(Size size, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -329,7 +353,7 @@ class _LegalScreenState extends State<_LegalScreen>
                 : [const Color(0xFF00D4FF), const Color(0xFF7B61FF)],
           ).createShader(b),
           child: Text(
-            _title,
+            _title(l10n),
             style: TextStyle(
               fontSize: (size.width * 0.072).clamp(24.0, 40.0),
               fontWeight: FontWeight.w800,
@@ -341,7 +365,7 @@ class _LegalScreenState extends State<_LegalScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          _lastUpdated,
+          _lastUpdated(l10n),
           style: const TextStyle(
             color: Color(0xFF4A6080),
             fontSize: 12,
@@ -448,7 +472,7 @@ class _LegalScreenState extends State<_LegalScreen>
     );
   }
 
-  Widget _buildFooterNote() {
+  Widget _buildFooterNote(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -485,8 +509,8 @@ class _LegalScreenState extends State<_LegalScreen>
           Expanded(
             child: Text(
               widget.type == LegalType.terms
-                  ? "En utilisant Savvy, vous acceptez ces conditions. Pour toute question, contactez-nous à support@savvy.app"
-                  : "Pour exercer vos droits ou pour toute question concernant vos données, contactez notre DPO à privacy@savvy.app",
+                  ? l10n.legalTermsFooter
+                  : l10n.legalPrivacyFooter,
               style: const TextStyle(
                 color: Color(0xFF6B8CAE),
                 fontSize: 12,
@@ -499,7 +523,7 @@ class _LegalScreenState extends State<_LegalScreen>
     );
   }
 
-  Widget _buildBottomButton(double hPad) {
+  Widget _buildBottomButton(double hPad, AppLocalizations l10n) {
     return Container(
       padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 28),
       decoration: BoxDecoration(
@@ -530,9 +554,9 @@ class _LegalScreenState extends State<_LegalScreen>
                     color: const Color(0xFF4A6080),
                   ),
                   const SizedBox(width: 4),
-                  const Text(
-                    'Faites défiler pour lire',
-                    style: TextStyle(color: Color(0xFF4A6080), fontSize: 11),
+                  Text(
+                    l10n.legalScrollHint,
+                    style: const TextStyle(color: Color(0xFF4A6080), fontSize: 11),
                   ),
                 ],
               ),
@@ -586,8 +610,8 @@ class _LegalScreenState extends State<_LegalScreen>
                       const SizedBox(width: 8),
                       Text(
                         widget.type == LegalType.terms
-                            ? "J'accepte les conditions"
-                            : "J'accepte la politique",
+                            ? l10n.legalAcceptTerms
+                            : l10n.legalAcceptPrivacy,
                         style: const TextStyle(
                           color: Color(0xFF060D1F),
                           fontSize: 15,
@@ -621,6 +645,7 @@ class _LegalSection {
   });
 }
 
+// ignore: unused_element
 const List<_LegalSection> _termsSections = [
   _LegalSection(
     title: "1. Acceptation des conditions",
@@ -672,6 +697,7 @@ const List<_LegalSection> _termsSections = [
   ),
 ];
 
+// ignore: unused_element
 const List<_LegalSection> _privacySections = [
   _LegalSection(
     title: "1. Données collectées",

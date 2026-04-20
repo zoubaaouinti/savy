@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:savy/l10n/app_localizations.dart';
 import '../../models/objective.dart';
+import '../../providers/currency_provider.dart';
 import '../../viewmodels/objectives_view_model.dart';
 import 'objective_card.dart';
 import 'add_objective_sheet.dart';
@@ -10,30 +12,24 @@ import 'add_objective_sheet.dart';
 //  lib/views/objectivesScreen/objectives_screen.dart
 // ══════════════════════════════════════════════════════════════
 
-// Options de tri
 enum SortOption {
-  priorityAsc,    // Priorité : haute → basse
-  priorityDesc,   // Priorité : basse → haute
-  progressAsc,    // Progression : moins → plus atteint
-  progressDesc,   // Progression : plus → moins atteint
+  dateDesc,      // Date : plus récent → plus ancien
+  dateAsc,       // Date : plus ancien → plus récent
+  priorityAsc,   // Priorité : haute → basse
+  priorityDesc,  // Priorité : basse → haute
+  progressDesc,  // Progression : plus atteint → moins atteint
+  progressAsc,   // Progression : moins atteint → plus atteint
 }
 
-extension SortOptionLabel on SortOption {
-  String get label {
-    switch (this) {
-      case SortOption.priorityAsc:  return 'Priorité : haute → basse';
-      case SortOption.priorityDesc: return 'Priorité : basse → haute';
-      case SortOption.progressAsc:  return 'Progression : moins atteint';
-      case SortOption.progressDesc: return 'Progression : plus atteint';
-    }
-  }
-
+extension SortOptionIcon on SortOption {
   IconData get icon {
     switch (this) {
-      case SortOption.priorityAsc:  return Icons.arrow_upward_rounded;
-      case SortOption.priorityDesc: return Icons.arrow_downward_rounded;
-      case SortOption.progressAsc:  return Icons.signal_cellular_alt_1_bar_rounded;
+      case SortOption.dateDesc:     return Icons.arrow_downward_rounded;
+      case SortOption.dateAsc:      return Icons.arrow_upward_rounded;
+      case SortOption.priorityAsc:  return Icons.keyboard_double_arrow_up_rounded;
+      case SortOption.priorityDesc: return Icons.keyboard_double_arrow_down_rounded;
       case SortOption.progressDesc: return Icons.signal_cellular_alt_rounded;
+      case SortOption.progressAsc:  return Icons.signal_cellular_alt_1_bar_rounded;
     }
   }
 }
@@ -58,33 +54,55 @@ class _ObjectivesView extends StatefulWidget {
 }
 
 class _ObjectivesViewState extends State<_ObjectivesView> {
-  SortOption _currentSort = SortOption.priorityAsc;
+  SortOption _currentSort = SortOption.dateDesc;
 
-  // ── Applique le tri choisi sur la liste ────────────────────
+  // ── Helper: get localized label for a SortOption ──────────
+  String _sortLabel(SortOption option, AppLocalizations l10n) {
+    switch (option) {
+      case SortOption.dateDesc:     return l10n.objectivesSortDateDesc;
+      case SortOption.dateAsc:      return l10n.objectivesSortDateAsc;
+      case SortOption.priorityAsc:  return l10n.objectivesSortPriorityHighFirst;
+      case SortOption.priorityDesc: return l10n.objectivesSortPriorityLowFirst;
+      case SortOption.progressDesc: return l10n.objectivesSortProgressDesc;
+      case SortOption.progressAsc:  return l10n.objectivesSortProgressAsc;
+    }
+  }
+
+  // ── Tri ────────────────────────────────────────────────────
   List<Objective> _sorted(List<Objective> list) {
     final sorted = List<Objective>.from(list);
     switch (_currentSort) {
+      case SortOption.dateDesc:
+        sorted.sort((a, b) =>
+            (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+        break;
+      case SortOption.dateAsc:
+        sorted.sort((a, b) =>
+            (a.createdAt ?? DateTime(2000)).compareTo(b.createdAt ?? DateTime(2000)));
+        break;
       case SortOption.priorityAsc:
         sorted.sort((a, b) => a.priority.compareTo(b.priority));
         break;
       case SortOption.priorityDesc:
         sorted.sort((a, b) => b.priority.compareTo(a.priority));
         break;
-      case SortOption.progressAsc:
-        sorted.sort((a, b) => a.progress.compareTo(b.progress));
-        break;
       case SortOption.progressDesc:
         sorted.sort((a, b) => b.progress.compareTo(a.progress));
+        break;
+      case SortOption.progressAsc:
+        sorted.sort((a, b) => a.progress.compareTo(b.progress));
         break;
     }
     return sorted;
   }
 
-  // ── Menu de tri (bottom sheet) ─────────────────────────────
-  void _showSortSheet(BuildContext context) {
+  // ── Bottom sheet filtre unique ─────────────────────────────
+  void _showFilterSheet(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
           decoration: const BoxDecoration(
@@ -92,71 +110,72 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A2E52),
-                    borderRadius: BorderRadius.circular(2),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2E52),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              const Text('Trier par',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              const Text('Choisissez l\'ordre d\'affichage',
-                  style: TextStyle(
-                      color: Color(0xFF4A6080), fontSize: 12)),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
+                Text(l10n.objectivesSortTitle,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text(l10n.objectivesSortSubtitle,
+                    style: const TextStyle(color: Color(0xFF4A6080), fontSize: 12)),
+                const SizedBox(height: 20),
 
-              // ── Séparateur : Priorité
-              _sheetSectionLabel('Par priorité'),
-              const SizedBox(height: 10),
-              _sortOption(
-                ctx, setSheet,
-                option: SortOption.priorityAsc,
-                subtitle: 'Les plus importants en premier',
-              ),
-              const SizedBox(height: 8),
-              _sortOption(
-                ctx, setSheet,
-                option: SortOption.priorityDesc,
-                subtitle: 'Les moins importants en premier',
-              ),
-              const SizedBox(height: 16),
+                _sectionLabel(l10n.objectivesSortByDate),
+                const SizedBox(height: 10),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.dateDesc,
+                    subtitle: l10n.objectivesSortDateDescSub),
+                const SizedBox(height: 8),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.dateAsc,
+                    subtitle: l10n.objectivesSortDateAscSub),
+                const SizedBox(height: 16),
 
-              // ── Séparateur : Progression
-              _sheetSectionLabel('Par progression'),
-              const SizedBox(height: 10),
-              _sortOption(
-                ctx, setSheet,
-                option: SortOption.progressDesc,
-                subtitle: 'Les plus proches du but en premier',
-              ),
-              const SizedBox(height: 8),
-              _sortOption(
-                ctx, setSheet,
-                option: SortOption.progressAsc,
-                subtitle: 'Les moins avancés en premier',
-              ),
-              const SizedBox(height: 4),
-            ],
+                _sectionLabel(l10n.objectivesSortByPriority),
+                const SizedBox(height: 10),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.priorityAsc,
+                    subtitle: l10n.objectivesSortPriorityHighFirstSub),
+                const SizedBox(height: 8),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.priorityDesc,
+                    subtitle: l10n.objectivesSortPriorityLowFirstSub),
+                const SizedBox(height: 16),
+
+                _sectionLabel(l10n.objectivesSortByProgress),
+                const SizedBox(height: 10),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.progressDesc,
+                    subtitle: l10n.objectivesSortProgressDescSub),
+                const SizedBox(height: 8),
+                _sortOption(ctx, setSheet, l10n,
+                    option: SortOption.progressAsc,
+                    subtitle: l10n.objectivesSortProgressAscSub),
+                const SizedBox(height: 4),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _sheetSectionLabel(String text) => Text(
+  Widget _sectionLabel(String text) => Text(
     text,
     style: const TextStyle(
         color: Color(0xFF8BA8D4),
@@ -167,7 +186,8 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
 
   Widget _sortOption(
       BuildContext ctx,
-      StateSetter setSheet, {
+      StateSetter setSheet,
+      AppLocalizations l10n, {
         required SortOption option,
         required String subtitle,
       }) {
@@ -203,20 +223,18 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
                     ? const Color(0xFF3EFFA8).withOpacity(0.15)
                     : const Color(0xFF1A2E52),
               ),
-              child: Icon(
-                option.icon,
-                color: isSelected
-                    ? const Color(0xFF3EFFA8)
-                    : const Color(0xFF4A6080),
-                size: 18,
-              ),
+              child: Icon(option.icon,
+                  color: isSelected
+                      ? const Color(0xFF3EFFA8)
+                      : const Color(0xFF4A6080),
+                  size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(option.label,
+                  Text(_sortLabel(option, l10n),
                       style: TextStyle(
                           color: isSelected
                               ? const Color(0xFF3EFFA8)
@@ -242,6 +260,7 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<ObjectivesViewModel>();
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF060D1F),
@@ -249,9 +268,9 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(context),
-            _buildGlobalProgress(vm),
-            Expanded(child: _buildList(context, vm)),
+            _buildHeader(context, l10n),
+            _buildGlobalProgress(vm, l10n),
+            Expanded(child: _buildList(context, vm, l10n)),
           ],
         ),
       ),
@@ -265,83 +284,45 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
         ),
         backgroundColor: const Color(0xFF3EFFA8),
         icon: const Icon(Icons.add, color: Color(0xFF060D1F)),
-        label: const Text('Nouvel objectif',
-            style: TextStyle(
+        label: Text(l10n.objectivesAdd,
+            style: const TextStyle(
                 color: Color(0xFF060D1F),
                 fontWeight: FontWeight.w700)),
       ),
     );
   }
 
-  // ── Header avec bouton tri actif ───────────────────────────
-  Widget _buildHeader(BuildContext context) {
-    // Affiche le label court du tri actif
-    final shortLabel = _currentSort == SortOption.priorityAsc
-        ? 'Priorité'
-        : _currentSort == SortOption.priorityDesc
-        ? 'Priorité ↑'
-        : _currentSort == SortOption.progressDesc
-        ? 'Plus atteint'
-        : 'Moins atteint';
-
+  // ── Header avec bouton filtre unique ──────────────────────
+  Widget _buildHeader(BuildContext context, AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       child: Row(
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Objectifs',
-                  style: TextStyle(
+              Text(l10n.objectivesTitle,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.w800)),
-              Text('Vos objectifs d\'épargne',
-                  style: TextStyle(
+              Text(l10n.objectivesSubtitle,
+                  style: const TextStyle(
                       color: Color(0xFF4A6080), fontSize: 13)),
             ],
           ),
           const Spacer(),
-          // Bouton tri — s'allume si tri non-défaut
           GestureDetector(
-            onTap: () => _showSortSheet(context),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 7),
+            onTap: () => _showFilterSheet(context),
+            child: Container(
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                color: _currentSort != SortOption.priorityAsc
-                    ? const Color(0xFF3EFFA8).withOpacity(0.12)
-                    : const Color(0xFF0B1535),
-                border: Border.all(
-                  color: _currentSort != SortOption.priorityAsc
-                      ? const Color(0xFF3EFFA8).withOpacity(0.5)
-                      : const Color(0xFF1A2E52),
-                ),
+                color: const Color(0xFF0B1535),
+                border: Border.all(color: const Color(0xFF1A2E52)),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.sort_rounded,
-                    color: _currentSort != SortOption.priorityAsc
-                        ? const Color(0xFF3EFFA8)
-                        : const Color(0xFF8BA8D4),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    shortLabel,
-                    style: TextStyle(
-                      color: _currentSort != SortOption.priorityAsc
-                          ? const Color(0xFF3EFFA8)
-                          : const Color(0xFF8BA8D4),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+              child: const Icon(Icons.filter_list_rounded,
+                  color: Color(0xFF8BA8D4), size: 18),
             ),
           ),
         ],
@@ -350,10 +331,11 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
   }
 
   // ── Barre de progression globale ───────────────────────────
-  Widget _buildGlobalProgress(ObjectivesViewModel vm) {
+  Widget _buildGlobalProgress(ObjectivesViewModel vm, AppLocalizations l10n) {
     return StreamBuilder<List<Objective>>(
       stream: vm.objectivesStream,
       builder: (context, snapshot) {
+        final cur = context.watch<CurrencyProvider>();
         final objectives = snapshot.data ?? [];
         final totals = vm.computeTotals(objectives);
         final saved = totals['saved']!;
@@ -382,8 +364,8 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
                     const Icon(Icons.savings_rounded,
                         color: Color(0xFF3EFFA8), size: 20),
                     const SizedBox(width: 10),
-                    const Text('Épargne totale',
-                        style: TextStyle(
+                    Text(l10n.objectivesTotalSavings,
+                        style: const TextStyle(
                             color: Color(0xFF8BA8D4),
                             fontSize: 13,
                             fontWeight: FontWeight.w500)),
@@ -410,10 +392,10 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${saved.toStringAsFixed(0)} TND épargnés',
+                    Text('${cur.format(saved)} ${l10n.objectivesSaved}',
                         style: const TextStyle(
                             color: Color(0xFF3EFFA8), fontSize: 12)),
-                    Text('Objectif: ${target.toStringAsFixed(0)} TND',
+                    Text('Objectif: ${cur.format(target)}',
                         style: const TextStyle(
                             color: Color(0xFF4A6080), fontSize: 12)),
                   ],
@@ -427,7 +409,7 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
   }
 
   // ── Liste triée ────────────────────────────────────────────
-  Widget _buildList(BuildContext context, ObjectivesViewModel vm) {
+  Widget _buildList(BuildContext context, ObjectivesViewModel vm, AppLocalizations l10n) {
     return StreamBuilder<List<Objective>>(
       stream: vm.objectivesStream,
       builder: (context, snapshot) {
@@ -453,21 +435,24 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
                 Icon(Icons.savings_outlined,
                     color: const Color(0xFF1A2E52), size: 64),
                 const SizedBox(height: 16),
-                const Text('Aucun objectif pour l\'instant',
-                    style: TextStyle(
+                Text(l10n.objectivesEmpty,
+                    style: const TextStyle(
                         color: Color(0xFF4A6080), fontSize: 15)),
                 const SizedBox(height: 6),
-                const Text('Appuyez sur + pour en créer un',
-                    style: TextStyle(
+                Text(l10n.objectivesEmptyHint,
+                    style: const TextStyle(
                         color: Color(0xFF2A4060), fontSize: 12)),
               ],
             ),
           );
         }
 
+        final countText = objectives.length == 1
+            ? l10n.objectivesCount(1)
+            : l10n.objectivesCountPlural(objectives.length);
+
         return Column(
           children: [
-            // ── Indicateur du tri actif
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Row(
@@ -476,13 +461,13 @@ class _ObjectivesViewState extends State<_ObjectivesView> {
                       color: const Color(0xFF4A6080), size: 12),
                   const SizedBox(width: 6),
                   Text(
-                    _currentSort.label,
+                    _sortLabel(_currentSort, l10n),
                     style: const TextStyle(
                         color: Color(0xFF4A6080), fontSize: 11),
                   ),
                   const Spacer(),
                   Text(
-                    '${objectives.length} objectif${objectives.length > 1 ? 's' : ''}',
+                    countText,
                     style: const TextStyle(
                         color: Color(0xFF4A6080), fontSize: 11),
                   ),

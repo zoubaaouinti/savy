@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../models/profile_models.dart';
+import 'package:savy/l10n/app_localizations.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final UserProfile profile;
@@ -72,6 +73,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   void _showPhotoOptions() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0B1535),
@@ -84,14 +86,14 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFF1A2E52), borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 20),
-              const Text('Photo de profil', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(l10n.editProfilePhotoTitle, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 20),
-              _photoOption(Icons.photo_library_rounded, 'Choisir depuis la galerie', const Color(0xFF3EFFA8), () { Navigator.pop(context); _pickImage(ImageSource.gallery); }),
+              _photoOption(Icons.photo_library_rounded, l10n.editProfilePhotoGallery, const Color(0xFF3EFFA8), () { Navigator.pop(context); _pickImage(ImageSource.gallery); }),
               const SizedBox(height: 12),
-              _photoOption(Icons.camera_alt_rounded, 'Prendre une photo', const Color(0xFF00D4FF), () { Navigator.pop(context); _pickImage(ImageSource.camera); }),
+              _photoOption(Icons.camera_alt_rounded, l10n.editProfilePhotoCamera, const Color(0xFF00D4FF), () { Navigator.pop(context); _pickImage(ImageSource.camera); }),
               if (_photoBytes != null || _localPhoto != null) ...[
                 const SizedBox(height: 12),
-                _photoOption(Icons.delete_outline_rounded, 'Supprimer la photo', const Color(0xFFFF5C7A), () { Navigator.pop(context); setState(() { _localPhoto = null; _photoBytes = null; _photoDeleted = true; }); }),
+                _photoOption(Icons.delete_outline_rounded, l10n.editProfilePhotoDelete, const Color(0xFFFF5C7A), () { Navigator.pop(context); setState(() { _localPhoto = null; _photoBytes = null; _photoDeleted = true; }); }),
               ],
             ],
           ),
@@ -117,9 +119,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    final l10n = AppLocalizations.of(context);
     PermissionStatus status = source == ImageSource.camera ? await Permission.camera.request() : await Permission.photos.request();
     if (status.isDenied || status.isPermanentlyDenied) {
-      setState(() => _errorMessage = 'Permission refusée');
+      setState(() => _errorMessage = l10n.errorPermissionDenied);
       if (status.isPermanentlyDenied) await openAppSettings();
       return;
     }
@@ -127,7 +130,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       final XFile? picked = await _picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 85);
       if (picked != null) setState(() { _localPhoto = File(picked.path); _photoDeleted = false; _errorMessage = null; });
     } catch (e) {
-      setState(() => _errorMessage = "Impossible d'accéder à la source");
+      setState(() => _errorMessage = l10n.errorGeneric);
     }
   }
 
@@ -149,6 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
   }
 
   Future<void> _handleSave() async {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
     setState(() { _isLoading = true; _errorMessage = null; _successMessage = null; });
     try {
@@ -168,7 +172,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       if (_nameCtrl.text.trim() != widget.profile.name) await user.updateDisplayName(_nameCtrl.text.trim());
       if (_emailCtrl.text.trim() != widget.profile.email) {
         await user.verifyBeforeUpdateEmail(_emailCtrl.text.trim());
-        setState(() => _successMessage = 'Email de vérification envoyé à ${_emailCtrl.text}');
+        setState(() => _successMessage = l10n.editProfileEmailVerificationSent(_emailCtrl.text));
       }
       final updatedProfile = widget.profile.copyWithPhoto(
         name: _nameCtrl.text.trim(), email: _emailCtrl.text.trim(),
@@ -179,26 +183,28 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       if (_localPhoto != null) setState(() => _photoBytes = base64Decode(finalPhotoBase64!));
       if (_photoDeleted) setState(() { _photoBytes = null; _photoDeleted = false; });
       if (!mounted) return;
-      setState(() { _isLoading = false; _successMessage ??= 'Profil mis à jour ✓'; });
+      setState(() { _isLoading = false; _successMessage ??= l10n.editProfileSuccess; });
       await Future.delayed(const Duration(milliseconds: 800));
       if (mounted) Navigator.of(context).pop(updatedProfile);
     } on FirebaseAuthException catch (e) {
       setState(() { _isLoading = false; _errorMessage = _mapError(e.code); });
     } catch (e) {
-      setState(() { _isLoading = false; _errorMessage = "Une erreur s'est produite"; });
+      setState(() { _isLoading = false; _errorMessage = AppLocalizations.of(context).errorGeneric; });
     }
   }
 
   String _mapError(String code) {
+    final l10n = AppLocalizations.of(context);
     switch (code) {
-      case 'email-already-in-use': return 'Cet email est déjà utilisé';
-      case 'requires-recent-login': return 'Reconnectez-vous et réessayez';
-      default: return 'Erreur ($code)';
+      case 'email-already-in-use': return l10n.errorEmailAlreadyInUse;
+      case 'requires-recent-login': return l10n.errorRequiresRecentLogin;
+      default: return l10n.errorGeneric;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
     final hPad = size.shortestSide > 600 ? size.width * 0.2 : 20.0;
     return Scaffold(
@@ -210,7 +216,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           SafeArea(
             child: Column(
               children: [
-                _buildTopBar(context),
+                _buildTopBar(context, l10n),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -221,37 +227,37 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                         children: [
                           _buildAvatar(),
                           const SizedBox(height: 32),
-                          _sectionTitle('Informations personnelles'),
+                          _sectionTitle(l10n.editProfileSectionPersonal),
                           const SizedBox(height: 12),
                           _card([
-                            _field(label: 'Nom complet', controller: _nameCtrl, icon: Icons.person_outline_rounded,
-                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom requis' : null),
+                            _field(label: l10n.editProfileName, controller: _nameCtrl, icon: Icons.person_outline_rounded,
+                                validator: (v) => (v == null || v.trim().isEmpty) ? l10n.errorRequired : null),
                             const SizedBox(height: 16),
-                            _field(label: 'Adresse email', controller: _emailCtrl, icon: Icons.alternate_email_rounded,
+                            _field(label: l10n.editProfileEmail, controller: _emailCtrl, icon: Icons.alternate_email_rounded,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Email requis';
-                                  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) return 'Email invalide';
+                                  if (v == null || v.isEmpty) return l10n.errorRequired;
+                                  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) return l10n.errorInvalidEmail;
                                   return null;
                                 }),
                           ]),
                           const SizedBox(height: 20),
-                          _sectionTitle('Informations complémentaires'),
+                          _sectionTitle(l10n.editProfileSectionAdditional),
                           const SizedBox(height: 12),
                           _card([
-                            _fieldLabel('Genre'),
+                            _fieldLabel(l10n.editProfileGender),
                             const SizedBox(height: 8),
-                            _buildGenderSelector(),
+                            _buildGenderSelector(l10n),
                             const SizedBox(height: 16),
-                            _fieldLabel('Date de naissance'),
+                            _fieldLabel(l10n.editProfileBirthdate),
                             const SizedBox(height: 8),
-                            _buildBirthDatePicker(),
+                            _buildBirthDatePicker(l10n),
                           ]),
                           const SizedBox(height: 20),
                           if (_errorMessage != null) _alertWidget(_errorMessage!, isError: true),
                           if (_successMessage != null) _alertWidget(_successMessage!, isError: false),
                           const SizedBox(height: 8),
-                          _buildSaveButton(),
+                          _buildSaveButton(l10n),
                         ],
                       ),
                     ),
@@ -265,7 +271,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildTopBar(BuildContext context) => Padding(
+  Widget _buildTopBar(BuildContext context, AppLocalizations l10n) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
     child: Row(children: [
       GestureDetector(
@@ -277,7 +283,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       const SizedBox(width: 16),
       ShaderMask(
         shaderCallback: (b) => const LinearGradient(colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)]).createShader(b),
-        child: const Text('Modifier le profil', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+        child: Text(l10n.editProfileTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
       ),
     ]),
   );
@@ -303,8 +309,16 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     ),
   );
 
-  Widget _buildGenderSelector() {
+  Widget _buildGenderSelector(AppLocalizations l10n) {
     final genders = [Gender.male, Gender.female, Gender.other, Gender.notSpecified];
+    String _genderLabel(Gender g) {
+      switch (g) {
+        case Gender.male: return l10n.editProfileGenderMale;
+        case Gender.female: return l10n.editProfileGenderFemale;
+        case Gender.other: return l10n.editProfileGenderOther;
+        case Gender.notSpecified: return l10n.editProfileGenderNotSpecified;
+      }
+    }
     return Wrap(
       spacing: 8, runSpacing: 8,
       children: genders.map((g) {
@@ -321,7 +335,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (isSelected) ...[const Icon(Icons.check_rounded, color: Color(0xFF3EFFA8), size: 14), const SizedBox(width: 4)],
-              Text(g.label, style: TextStyle(color: isSelected ? const Color(0xFF3EFFA8) : const Color(0xFF6B8CAE), fontSize: 13, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
+              Text(_genderLabel(g), style: TextStyle(color: isSelected ? const Color(0xFF3EFFA8) : const Color(0xFF6B8CAE), fontSize: 13, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
             ]),
           ),
         );
@@ -329,7 +343,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildBirthDatePicker() {
+  Widget _buildBirthDatePicker(AppLocalizations l10n) {
     final hasDate = _selectedBirthDate != null;
     return GestureDetector(
       onTap: _pickBirthDate,
@@ -341,11 +355,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           const Icon(Icons.cake_rounded, color: Color(0xFF3EFFA8), size: 20),
           const SizedBox(width: 12),
           Expanded(child: Text(
-            hasDate ? '${_selectedBirthDate!.day.toString().padLeft(2, '0')}/${_selectedBirthDate!.month.toString().padLeft(2, '0')}/${_selectedBirthDate!.year}' : 'Sélectionner votre date de naissance',
+            hasDate ? '${_selectedBirthDate!.day.toString().padLeft(2, '0')}/${_selectedBirthDate!.month.toString().padLeft(2, '0')}/${_selectedBirthDate!.year}' : l10n.editProfileBirthdateHint,
             style: TextStyle(color: hasDate ? Colors.white : const Color(0xFF3A5068), fontSize: 14),
           )),
           if (hasDate) ...[
-            Text('${_calcAge(_selectedBirthDate!)} ans', style: const TextStyle(color: Color(0xFF3EFFA8), fontSize: 12)),
+            Text(l10n.editProfileAge(_calcAge(_selectedBirthDate!)), style: const TextStyle(color: Color(0xFF3EFFA8), fontSize: 12)),
             const SizedBox(width: 8),
           ],
           const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF3A5070), size: 13),
@@ -410,7 +424,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     );
   }
 
-  Widget _buildSaveButton() => SizedBox(
+  Widget _buildSaveButton(AppLocalizations l10n) => SizedBox(
     width: double.infinity, height: 52,
     child: _isLoading
         ? Container(
@@ -425,7 +439,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       child: ElevatedButton(
         onPressed: _handleSave,
         style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-        child: const Text('Enregistrer les modifications', style: TextStyle(color: Color(0xFF060D1F), fontSize: 15, fontWeight: FontWeight.w700)),
+        child: Text(l10n.editProfileSave, style: const TextStyle(color: Color(0xFF060D1F), fontSize: 15, fontWeight: FontWeight.w700)),
       ),
     ),
   );
