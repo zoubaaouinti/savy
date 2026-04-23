@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/objective.dart';
+import '../services/notification_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  VIEWMODEL – ObjectivesViewModel
@@ -99,30 +100,98 @@ class ObjectivesViewModel extends ChangeNotifier {
   }) async {
     if (amount <= 0) return 'Le montant doit être supérieur à 0.';
 
+    String? goalName;
+    double? newCurrent;
+    double? target;
+
     try {
       final userRef = _firestore.collection('users').doc(_uid);
       final objRef = _goalsRef.doc(id);
 
-      return await _firestore.runTransaction((tx) async {
+      final error = await _firestore.runTransaction((tx) async {
         final userSnap = await tx.get(userRef);
         final objSnap = await tx.get(objRef);
 
         if (!objSnap.exists) return 'Objectif introuvable.';
 
-        final data = objSnap.data() as Map<String, dynamic>;
+        final data    = objSnap.data() as Map<String, dynamic>;
         final current = (data['currentAmount'] ?? 0).toDouble();
-        final target  = (data['targetAmount']  ?? 0).toDouble();
+        target        = (data['targetAmount']  ?? 0).toDouble();
+        goalName      = data['name'] as String?;
 
         final balance = (userSnap.data()?['initialBalance'] ?? 0).toDouble();
-        if (balance < amount) return 'Solde insuffisant (${balance.toStringAsFixed(2)} TND disponibles).';
+        if (balance < amount) {
+          return 'Solde insuffisant (${balance.toStringAsFixed(2)} TND disponibles).';
+        }
 
-        final newCurrent = (current + amount).clamp(0.0, target);
+        newCurrent = (current + amount).clamp(0.0, target!);
         tx.update(objRef,  {'currentAmount': newCurrent});
         tx.update(userRef, {'initialBalance': balance - amount});
         return null;
       });
+
+      // Fire notification AFTER the transaction commits (no UI in tx)
+      if (error == null &&
+          goalName != null &&
+          newCurrent != null &&
+          target != null) {
+        final name = goalName!;
+        final uid  = _uid;
+
+        if (newCurrent! >= target!) {
+          // 🎉 Goal completed
+          await NotificationService.sendGoalCompletion(
+            userId: uid,
+            goalId: id,
+            goalName: name,
+          );
+        } else {
+          // 💡 Compute a simple weekly saving suggestion
+          final remaining = target! - newCurrent!;
+          final weeklyTarget = remaining / 4; // rough 4-week estimate
+          await NotificationService.sendSavingSuggestion(
+            userId: uid,
+            goalName: name,
+            suggestedAmount: weeklyTarget,
+          );
+        }
+      }
+
+      return error;
     } catch (e) {
       return 'Erreur lors de la mise à jour : $e';
+    }
+  }
+
+  // ── Vérifier les objectifs proches de leur deadline ───────
+  /// Call once on app start (e.g. from initState of ObjectivesScreen)
+  /// to queue reminders for goals due within 3 days.
+  Future<void> checkDeadlineReminders() async {
+    final uid = _uid;
+    final now = DateTime.now();
+
+    try {
+      final snap = await _goalsRef.get();
+      for (final doc in snap.docs) {
+        final obj = Objective.fromFirestore(doc);
+        if (obj.isCompleted) continue;
+        if (obj.deadlineTimestamp == null) continue;
+
+        final deadline  = obj.deadlineTimestamp!.toDate();
+        final daysLeft  = deadline.difference(now).inDays;
+
+        if (daysLeft >= 0 && daysLeft <= 3) {
+          await NotificationService.sendGoalReminder(
+            userId: uid,
+            goalId: obj.id,
+            goalName: obj.name,
+            daysLeft: daysLeft,
+            remaining: obj.remaining,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ObjectivesVM] deadline check error: $e');
     }
   }
 

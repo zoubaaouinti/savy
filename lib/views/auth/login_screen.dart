@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:savy/l10n/app_localizations.dart';
 import 'package:savy/providers/language_provider.dart';
+import 'package:savy/widgets/language_switcher_button.dart';
 import '../legalScreen/legal_screens.dart';
 import '../../services/auth_service.dart';
 
@@ -71,58 +72,6 @@ class _LoginScreenState extends State<LoginScreen>
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
-  }
-
-  // ── Language Picker ───────────────────────────────────────
-  void _showLanguagePicker(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0B1535),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.langPickerTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ...LanguageProvider.supportedLanguages.map((lang) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Text(lang.flag,
-                      style: const TextStyle(fontSize: 26)),
-                  title: Text(
-                    lang.nativeLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onTap: () {
-                    context.read<LanguageProvider>().setLocale(lang.code);
-                    Navigator.of(sheetContext).pop();
-                  },
-                );
-              }),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   // ── Connexion Email ───────────────────────────────────────
@@ -428,38 +377,6 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           CustomPaint(size: size, painter: _GridPainter()),
-          // ── Language picker button ─────────────────────────
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 12, right: 16),
-                child: GestureDetector(
-                  onTap: () => _showLanguagePicker(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: const Color(0xFF0D1B38).withOpacity(0.85),
-                      border: Border.all(
-                          color: const Color(0xFF1A2E52), width: 1),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.language_rounded,
-                            color: Color(0xFF3EFFA8), size: 16),
-                        SizedBox(width: 6),
-                        Icon(Icons.keyboard_arrow_down_rounded,
-                            color: Color(0xFF8BA8D4), size: 14),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
           SafeArea(
             child: AnimatedBuilder(
               animation: _entranceController,
@@ -492,6 +409,8 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
           ),
+          // ── Toujours en dernier pour être au-dessus du scroll ──
+          const LanguageSwitcherButton(),
         ],
       ),
     );
@@ -1212,6 +1131,8 @@ class _SignUpScreenState extends State<SignUpScreen>
               ),
             ),
           ),
+          // ── Toujours en dernier pour être au-dessus du scroll ──
+          const LanguageSwitcherButton(),
         ],
       ),
     );
@@ -1359,8 +1280,7 @@ class _SignUpScreenState extends State<SignUpScreen>
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return l10n.errorRequired;
-              if (v != _passCtrl.text)
-                return 'Les mots de passe ne correspondent pas';
+              if (v != _passCtrl.text) return l10n.signupErrorConfirm;
               return null;
             },
           ),

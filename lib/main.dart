@@ -13,6 +13,8 @@ import 'package:savy/views/mainLayout/main_layout.dart';
 import 'package:savy/views/legalScreen/legal_screens.dart';
 import 'package:savy/views/onboarding/onboarding_screens.dart';
 import 'package:savy/l10n/app_localizations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:savy/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,14 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // ✅ Initialize notifications (FCM + local notifications)
+  await NotificationService.init();
+
+  // ✅ Re-save FCM token whenever auth state changes (covers all sign-in paths)
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null) NotificationService.saveTokenAfterLogin();
+  });
 
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -65,6 +75,7 @@ class SavyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Savy',
+      navigatorKey: NotificationService.navigatorKey, // ✅ ADDED - connects notification taps to navigation
       debugShowCheckedModeBanner: false,
 
       // ── Localisation dynamique ─────────────────────────────
@@ -135,14 +146,14 @@ class SavyApp extends StatelessWidget {
   }
 
   static PageRouteBuilder _fadeRoute(Widget page) => PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      );
+    pageBuilder: (_, __, ___) => page,
+    transitionsBuilder: (_, animation, __, child) =>
+        FadeTransition(opacity: animation, child: child),
+    transitionDuration: const Duration(milliseconds: 400),
+  );
 
   static PageRouteBuilder _slideRoute(Widget page,
-          {bool fromRight = true}) =>
+      {bool fromRight = true}) =>
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => page,
         transitionsBuilder: (_, animation, __, child) => SlideTransition(
