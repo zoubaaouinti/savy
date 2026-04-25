@@ -38,13 +38,20 @@ exports.sendNotificationOnCreate = onDocumentCreated(
     const notifRef   = snap.ref;
     const { userId, title, body, type, data: extra = {} } = notifData;
 
+    // Skip FCM push when the Flutter app set sent=true (history-only mode,
+    // e.g. user disabled security alert push notifications).
+    if (notifData.sent === true) {
+      logger.info(`Notification ${snap.id} has sent=true — skipping FCM push (history-only)`);
+      return null;
+    }
+
     if (!userId || !title || !body) {
       logger.warn('Missing required fields (userId/title/body) — skipping', notifData);
       await notifRef.update({ error: 'missing_fields', processedAt: FieldValue.serverTimestamp() });
       return null;
     }
 
-    // 1. Fetch the target user's FCM token
+    // 1. Fetch the target user's FCM token + language preference
     const db = getFirestore();
     const userSnap = await db.collection('users').doc(userId).get();
 
@@ -61,8 +68,24 @@ exports.sendNotificationOnCreate = onDocumentCreated(
       return null;
     }
 
-    // 2. Build the FCM message
-    //    data fields MUST all be strings for FCM data payloads.
+    // 2. Pick the right language for the push notification title/body.
+    //    The Flutter app saves languageCode to Firestore when the user
+    //    changes their language (LanguageProvider.setLocale).
+    const langCode = userSnap.data()?.languageCode ?? 'en';
+    let pushTitle, pushBody;
+    if (langCode === 'fr') {
+      pushTitle = notifData.titleFr || notifData.title || title;
+      pushBody  = notifData.bodyFr  || notifData.body  || body;
+    } else if (langCode === 'ar') {
+      pushTitle = notifData.titleAr || notifData.title || title;
+      pushBody  = notifData.bodyAr  || notifData.body  || body;
+    } else {
+      pushTitle = notifData.titleEn || notifData.title || title;
+      pushBody  = notifData.bodyEn  || notifData.body  || body;
+    }
+    logger.info(`Sending FCM in lang=${langCode} to user ${userId}`);
+
+    // 3. Build the FCM message
     const dataPayload = {
       type: type ?? 'general',
       ...Object.fromEntries(
@@ -74,8 +97,8 @@ exports.sendNotificationOnCreate = onDocumentCreated(
       token: fcmToken,
 
       notification: {
-        title,
-        body,
+        title: pushTitle,
+        body:  pushBody,
       },
 
       // Android-specific overrides
@@ -111,7 +134,7 @@ exports.sendNotificationOnCreate = onDocumentCreated(
       data: dataPayload,
     };
 
-    // 3. Send via FCM
+    // 4. Send via FCM
     try {
       const response = await getMessaging().send(message);
       logger.info(`FCM sent successfully: ${response} | notifId=${snap.id}`);
@@ -192,14 +215,21 @@ exports.dailyGoalDeadlineCheck = onSchedule(
       const deadlineMs = obj.deadlineTimestamp?.toMillis?.() ?? 0;
       const daysLeft   = Math.ceil((deadlineMs - now.getTime()) / (1000 * 60 * 60 * 24));
 
+      const rem      = (target - current).toFixed(2);
+      const daysStr  = String(daysLeft);
+      const titleEn  = `⏰ Goal Reminder — ${obj.name}`;
+      const bodyEn   = `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left for "${obj.name}". ${rem} TND still needed.`;
+      const titleFr  = `⏰ Rappel d'objectif — ${obj.name}`;
+      const bodyFr   = `${daysLeft} jour${daysLeft !== 1 ? 's' : ''} restant${daysLeft !== 1 ? 's' : ''} pour "${obj.name}". Il manque encore ${rem} TND.`;
+      const titleAr  = `⏰ تذكير بالهدف — ${obj.name}`;
+      const bodyAr   = `متبقّي ${daysLeft} يوم لـ "${obj.name}". لا يزال ينقصك ${rem} دينار.`;
       batch.push(
         db.collection('notifications').add({
           userId: uid,
-          title: `⏰ Goal Reminder — ${obj.name}`,
-          body: `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left for "${obj.name}". `
-            + `${(target - current).toFixed(2)} TND still needed.`,
+          title: titleEn, titleEn, titleFr, titleAr,
+          body:  bodyEn,  bodyEn,  bodyFr,  bodyAr,
           type: 'goal_reminder',
-          data: { goalId: doc.id, daysLeft: String(daysLeft) },
+          data: { goalId: doc.id, daysLeft: daysStr },
           createdAt: FieldValue.serverTimestamp(),
           read: false,
           sent: false,

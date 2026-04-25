@@ -12,6 +12,7 @@ import '../../widgets/charts/donut_chart.dart';
 import '../../widgets/charts/half_gauge_chart.dart';
 import '../../widgets/charts/weekly_bar_chart.dart';
 import '../mainLayout/main_layout.dart';
+import '../notifications/notifications_screen.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  HOME SCREEN – Tableau de bord dynamique
@@ -235,33 +236,48 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ],
         ),
         const Spacer(),
-        Stack(
-          children: [
-            Container(
-              width:  42,
-              height: 42,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF1A2E52)),
-                color:  const Color(0xFF0D1B38),
+        GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (_, a, __) => const NotificationsScreen(),
+              transitionsBuilder: (_, a, __, child) => SlideTransition(
+                position: Tween<Offset>(
+                        begin: const Offset(1, 0), end: Offset.zero)
+                    .animate(CurvedAnimation(
+                        parent: a, curve: Curves.easeOutCubic)),
+                child: child,
               ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                color: Color(0xFF8BA8D4),
-                size:  20,
-              ),
+              transitionDuration: const Duration(milliseconds: 350),
             ),
-            Positioned(
-              top: 8, right: 8,
-              child: Container(
-                width:  8, height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF3EFFA8),
+          ),
+          child: Stack(
+            children: [
+              Container(
+                width:  42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF1A2E52)),
+                  color:  const Color(0xFF0D1B38),
+                ),
+                child: const Icon(
+                  Icons.notifications_outlined,
+                  color: Color(0xFF8BA8D4),
+                  size:  20,
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 8, right: 8,
+                child: Container(
+                  width:  8, height: 8,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF3EFFA8),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

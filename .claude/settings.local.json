@@ -3,7 +3,8 @@
     "allow": [
       "Bash(xargs cat *)",
       "Bash(flutter analyze *)",
-      "Bash(flutter gen-l10n *)"
+      "Bash(flutter gen-l10n *)",
+      "Bash(flutter pub *)"
     ]
   }
 }

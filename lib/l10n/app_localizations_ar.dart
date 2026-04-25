@@ -1374,4 +1374,105 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get legalPrivacyS8Content =>
       'قد يتم نقل بياناتك ومعالجتها في دول أخرى غير بلد إقامتك. في هذه الحالة، نضمن وجود ضمانات مناسبة، بما في ذلك البنود التعاقدية القياسية المعتمدة من المفوضية الأوروبية، لحماية بياناتك.';
+
+  @override
+  String get notifSettingsTitle => 'إعدادات الإشعارات';
+
+  @override
+  String get notifSettingsEnableAll => 'تفعيل جميع الإشعارات';
+
+  @override
+  String get notifSettingsBudgetAlert => 'تنبيهات الميزانية';
+
+  @override
+  String get notifSettingsBudgetAlertDesc =>
+      'احصل على إشعار عند الوصول إلى 90٪ من ميزانيتك';
+
+  @override
+  String get notifSettingsGoalReminder => 'تذكيرات الأهداف';
+
+  @override
+  String get notifSettingsGoalReminderDesc =>
+      'تذكيرات عند اقتراب موعد انتهاء هدفك';
+
+  @override
+  String get notifSettingsGoalCompletion => 'إنجازات الأهداف';
+
+  @override
+  String get notifSettingsGoalCompletionDesc =>
+      'احتفل عند الوصول إلى هدف ادخاري';
+
+  @override
+  String get notifSettingsSavingSuggestion => 'اقتراحات الادخار';
+
+  @override
+  String get notifSettingsSavingSuggestionDesc =>
+      'نصائح مخصصة لمساعدتك على ادخار أكثر';
+
+  @override
+  String get notifSettingsSectionSecurity => 'الأمان';
+
+  @override
+  String get notifSettingsSecurityAlert => 'تنبيهات الأمان';
+
+  @override
+  String get notifSettingsSecurityAlertDesc =>
+      'تلقّي إشعار فوري عند تغيير كلمة المرور';
+
+  @override
+  String get notificationsPageTitle => 'الإشعارات';
+
+  @override
+  String get notificationsEmpty => 'لا توجد إشعارات بعد';
+
+  @override
+  String get notificationsEmptyDesc => 'ستظهر تنبيهاتك وتذكيراتك هنا';
+
+  @override
+  String get notificationsMarkAllRead => 'تحديد الكل كمقروء';
+
+  @override
+  String get notificationsToday => 'اليوم';
+
+  @override
+  String get notificationsEarlier => 'سابقاً';
+
+  @override
+  String get notificationsDeleteTitle => 'حذف الإشعار';
+
+  @override
+  String get notificationsDeleteDesc => 'سيتم حذف هذا الإشعار نهائياً.';
+
+  @override
+  String get notificationsDeleteAllTitle => 'مسح جميع الإشعارات';
+
+  @override
+  String get notificationsDeleteAllDesc => 'سيتم حذف جميع إشعاراتك نهائياً.';
+
+  @override
+  String get notificationsCancel => 'إلغاء';
+
+  @override
+  String get notificationsDelete => 'حذف';
+
+  @override
+  String get notificationsDeleteAll => 'مسح الكل';
+
+  @override
+  String get notifTimeJustNow => 'الآن';
+
+  @override
+  String notifTimeMinutes(int n) {
+    return 'منذ $n د';
+  }
+
+  @override
+  String notifTimeHours(int n) {
+    return 'منذ $n س';
+  }
+
+  @override
+  String notifTimeDays(int n) {
+    return 'منذ $n ي';
+  }
 }

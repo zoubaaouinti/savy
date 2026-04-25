@@ -2703,6 +2703,186 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Vos données peuvent être transférées et traitées dans des pays autres que votre pays de résidence. Dans ce cas, nous nous assurons que des garanties appropriées sont en place, notamment via des clauses contractuelles types approuvées par la Commission européenne, pour protéger vos données.'**
   String get legalPrivacyS8Content;
+
+  /// No description provided for @notifSettingsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Paramètres de notifications'**
+  String get notifSettingsTitle;
+
+  /// No description provided for @notifSettingsEnableAll.
+  ///
+  /// In fr, this message translates to:
+  /// **'Activer toutes les notifications'**
+  String get notifSettingsEnableAll;
+
+  /// No description provided for @notifSettingsBudgetAlert.
+  ///
+  /// In fr, this message translates to:
+  /// **'Alertes budget'**
+  String get notifSettingsBudgetAlert;
+
+  /// No description provided for @notifSettingsBudgetAlertDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Soyez notifié quand vous atteignez 90 % de votre budget'**
+  String get notifSettingsBudgetAlertDesc;
+
+  /// No description provided for @notifSettingsGoalReminder.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rappels d\'objectifs'**
+  String get notifSettingsGoalReminder;
+
+  /// No description provided for @notifSettingsGoalReminderDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Rappels quand l\'échéance de votre objectif approche'**
+  String get notifSettingsGoalReminderDesc;
+
+  /// No description provided for @notifSettingsGoalCompletion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Objectifs atteints'**
+  String get notifSettingsGoalCompletion;
+
+  /// No description provided for @notifSettingsGoalCompletionDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Célébrez quand vous atteignez un objectif d\'épargne'**
+  String get notifSettingsGoalCompletionDesc;
+
+  /// No description provided for @notifSettingsSavingSuggestion.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suggestions d\'épargne'**
+  String get notifSettingsSavingSuggestion;
+
+  /// No description provided for @notifSettingsSavingSuggestionDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Conseils personnalisés pour vous aider à épargner davantage'**
+  String get notifSettingsSavingSuggestionDesc;
+
+  /// No description provided for @notifSettingsSectionSecurity.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sécurité'**
+  String get notifSettingsSectionSecurity;
+
+  /// No description provided for @notifSettingsSecurityAlert.
+  ///
+  /// In fr, this message translates to:
+  /// **'Alertes de sécurité'**
+  String get notifSettingsSecurityAlert;
+
+  /// No description provided for @notifSettingsSecurityAlertDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Recevoir une notification push lors d\'un changement de mot de passe'**
+  String get notifSettingsSecurityAlertDesc;
+
+  /// No description provided for @notificationsPageTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Notifications'**
+  String get notificationsPageTitle;
+
+  /// No description provided for @notificationsEmpty.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune notification pour l\'instant'**
+  String get notificationsEmpty;
+
+  /// No description provided for @notificationsEmptyDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vos alertes et rappels apparaîtront ici'**
+  String get notificationsEmptyDesc;
+
+  /// No description provided for @notificationsMarkAllRead.
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout marquer comme lu'**
+  String get notificationsMarkAllRead;
+
+  /// No description provided for @notificationsToday.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get notificationsToday;
+
+  /// No description provided for @notificationsEarlier.
+  ///
+  /// In fr, this message translates to:
+  /// **'Précédemment'**
+  String get notificationsEarlier;
+
+  /// No description provided for @notificationsDeleteTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer la notification'**
+  String get notificationsDeleteTitle;
+
+  /// No description provided for @notificationsDeleteDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette notification sera définitivement supprimée.'**
+  String get notificationsDeleteDesc;
+
+  /// No description provided for @notificationsDeleteAllTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Effacer toutes les notifications'**
+  String get notificationsDeleteAllTitle;
+
+  /// No description provided for @notificationsDeleteAllDesc.
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes vos notifications seront définitivement supprimées.'**
+  String get notificationsDeleteAllDesc;
+
+  /// No description provided for @notificationsCancel.
+  ///
+  /// In fr, this message translates to:
+  /// **'Annuler'**
+  String get notificationsCancel;
+
+  /// No description provided for @notificationsDelete.
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer'**
+  String get notificationsDelete;
+
+  /// No description provided for @notificationsDeleteAll.
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout effacer'**
+  String get notificationsDeleteAll;
+
+  /// No description provided for @notifTimeJustNow.
+  ///
+  /// In fr, this message translates to:
+  /// **'À l\'instant'**
+  String get notifTimeJustNow;
+
+  /// No description provided for @notifTimeMinutes.
+  ///
+  /// In fr, this message translates to:
+  /// **'Il y a {n} min'**
+  String notifTimeMinutes(int n);
+
+  /// No description provided for @notifTimeHours.
+  ///
+  /// In fr, this message translates to:
+  /// **'Il y a {n} h'**
+  String notifTimeHours(int n);
+
+  /// No description provided for @notifTimeDays.
+  ///
+  /// In fr, this message translates to:
+  /// **'Il y a {n} j'**
+  String notifTimeDays(int n);
 }
 
 class _AppLocalizationsDelegate

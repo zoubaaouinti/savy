@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:savy/l10n/app_localizations.dart';
+import '../../../services/notification_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – SECURITY SCREEN
@@ -113,6 +114,13 @@ class _SecurityScreenState extends State<SecurityScreen>
 
       // Changement du mot de passe
       await user.updatePassword(_newPassCtrl.text);
+
+      // Alerte sécurité — écrite dans Firestore, la Cloud Function
+      // envoie ensuite le push FCM (y compris app fermée / arrière-plan).
+      await NotificationService.sendPasswordChangedAlert(
+        userId: user.uid,
+        email: user.email ?? '',
+      );
 
       if (!mounted) return;
       setState(() {

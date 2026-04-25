@@ -14,6 +14,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  TOP-LEVEL background handler (REQUIRED by FCM — must NOT be
@@ -224,6 +225,9 @@ class NotificationService {
       case 'saving_suggestion':
         nav.pushNamedAndRemoveUntil('/home', (r) => false);
         break;
+      case 'password_changed':
+        nav.pushNamedAndRemoveUntil('/home', (r) => false);
+        break;
       default:
         nav.pushNamedAndRemoveUntil('/home', (r) => false);
     }
@@ -233,16 +237,23 @@ class NotificationService {
   //  PUBLIC API — call from ViewModels
   // ════════════════════════════════════════════════════════════
 
-  /// Low-level: write a notification request document to Firestore.
-  /// The Cloud Function picks this up and sends the actual FCM push.
+  /// Low-level: write a multilingual notification to Firestore.
+  /// titleEn/bodyEn are the defaults used by FCM if no specific language
+  /// field exists. The Cloud Function reads the user's languageCode from
+  /// Firestore and picks the right field for the push title/body.
   static Future<void> _dispatch({
     required String userId,
-    required String title,
+    required String title,   // EN — also the FCM fallback
     required String body,
     required String type,
+    String? titleFr,
+    String? titleAr,
+    String? bodyFr,
+    String? bodyAr,
     Map<String, String> extra = const {},
-    // dedup key: same key within a session → skip
     String? dedupKey,
+    // true → stored for history only, Cloud Function skips FCM push
+    bool skipPush = false,
   }) async {
     if (dedupKey != null && _sentKeys.contains(dedupKey)) return;
     if (dedupKey != null) _sentKeys.add(dedupKey);
@@ -250,13 +261,21 @@ class NotificationService {
     try {
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId': userId,
-        'title': title,
-        'body': body,
-        'type': type,
-        'data': extra,
+        // EN (default / FCM fallback)
+        'title':   title,
+        'body':    body,
+        // Per-language fields — Cloud Function + Flutter app both use these
+        'titleEn': title,
+        'titleFr': titleFr ?? title,
+        'titleAr': titleAr ?? title,
+        'bodyEn':  body,
+        'bodyFr':  bodyFr ?? body,
+        'bodyAr':  bodyAr ?? body,
+        'type':    type,
+        'data':    extra,
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
-        'sent': false,
+        'sent': skipPush,
       });
     } catch (e) {
       debugPrint('[FCM] dispatch error: $e');
@@ -265,27 +284,28 @@ class NotificationService {
 
   // ── Typed helpers ──────────────────────────────────────────
 
-  /// Fire when a budget category hits ≥ 90 % of its limit.
   static Future<void> sendBudgetAlert({
     required String userId,
     required String categoryName,
     required double spent,
     required double budget,
   }) {
-    final pct = (spent / budget * 100).round();
+    final pct       = (spent / budget * 100).round();
     final remaining = (budget - spent).toStringAsFixed(2);
     return _dispatch(
       userId: userId,
-      title: '⚠️ Budget Alert — $categoryName',
-      body: "You've used $pct% of your $categoryName budget. "
-          'Only $remaining TND left!',
-      type: 'budget_alert',
-      extra: {'categoryName': categoryName, 'pct': pct.toString()},
+      title:   '⚠️ Budget Alert — $categoryName',
+      body:    "You've used $pct% of your $categoryName budget. Only $remaining TND left!",
+      titleFr: '⚠️ Alerte budget — $categoryName',
+      bodyFr:  'Vous avez utilisé $pct% de votre budget $categoryName. Il reste $remaining TND !',
+      titleAr: '⚠️ تنبيه الميزانية — $categoryName',
+      bodyAr:  'استخدمت $pct% من ميزانية $categoryName. تبقّى $remaining دينار فقط!',
+      type:    'budget_alert',
+      extra:   {'categoryName': categoryName, 'pct': pct.toString()},
       dedupKey: 'budget_alert_${userId}_$categoryName',
     );
   }
 
-  /// Fire when a goal deadline is ≤ 3 days away and it's not yet complete.
   static Future<void> sendGoalReminder({
     required String userId,
     required String goalId,
@@ -293,21 +313,27 @@ class NotificationService {
     required int daysLeft,
     required double remaining,
   }) {
+    final rem = remaining.toStringAsFixed(2);
     return _dispatch(
       userId: userId,
       title: '⏰ Goal Reminder — $goalName',
       body: daysLeft == 0
-          ? 'Today is the deadline for "$goalName"! '
-              '${remaining.toStringAsFixed(2)} TND still needed.'
-          : '$daysLeft day${daysLeft > 1 ? 's' : ''} left for "$goalName". '
-              '${remaining.toStringAsFixed(2)} TND still needed.',
-      type: 'goal_reminder',
-      extra: {'goalId': goalId, 'daysLeft': daysLeft.toString()},
+          ? 'Today is the deadline for "$goalName"! $rem TND still needed.'
+          : '$daysLeft day${daysLeft > 1 ? 's' : ''} left for "$goalName". $rem TND still needed.',
+      titleFr: '⏰ Rappel d\'objectif — $goalName',
+      bodyFr: daysLeft == 0
+          ? 'Aujourd\'hui est la date limite pour "$goalName" ! Il manque encore $rem TND.'
+          : '$daysLeft jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''} pour "$goalName". Il manque encore $rem TND.',
+      titleAr: '⏰ تذكير بالهدف — $goalName',
+      bodyAr: daysLeft == 0
+          ? 'اليوم هو الموعد النهائي لـ "$goalName"! لا يزال ينقصك $rem دينار.'
+          : 'متبقّي $daysLeft يوم لـ "$goalName". لا يزال ينقصك $rem دينار.',
+      type:    'goal_reminder',
+      extra:   {'goalId': goalId, 'daysLeft': daysLeft.toString()},
       dedupKey: 'goal_reminder_${userId}_$goalId',
     );
   }
 
-  /// Fire when a goal reaches 100 %.
   static Future<void> sendGoalCompletion({
     required String userId,
     required String goalId,
@@ -315,36 +341,62 @@ class NotificationService {
   }) {
     return _dispatch(
       userId: userId,
-      title: '🎉 Goal Achieved!',
-      body: 'Congratulations! You reached your "$goalName" goal. '
-          "Keep up the great work!",
-      type: 'goal_completion',
-      extra: {'goalId': goalId},
+      title:   '🎉 Goal Achieved!',
+      body:    'Congratulations! You reached your "$goalName" goal. Keep up the great work!',
+      titleFr: '🎉 Objectif atteint !',
+      bodyFr:  'Félicitations ! Vous avez atteint votre objectif "$goalName". Continuez comme ça !',
+      titleAr: '🎉 تم تحقيق الهدف!',
+      bodyAr:  'تهانينا! لقد حققت هدفك "$goalName". أحسنت!',
+      type:    'goal_completion',
+      extra:   {'goalId': goalId},
       dedupKey: 'goal_done_${userId}_$goalId',
     );
   }
 
-  /// Fire when a semi-automatic saving suggestion is generated.
   static Future<void> sendSavingSuggestion({
     required String userId,
     required String goalName,
     required double suggestedAmount,
   }) {
+    final amt = suggestedAmount.toStringAsFixed(2);
     return _dispatch(
       userId: userId,
-      title: '💡 Saving Suggestion',
-      body: 'Set aside ${suggestedAmount.toStringAsFixed(2)} TND this week '
-          'to stay on track for "$goalName".',
-      type: 'saving_suggestion',
-      extra: {
-        'goalName': goalName,
-        'amount': suggestedAmount.toStringAsFixed(2),
-      },
+      title:   '💡 Saving Suggestion',
+      body:    'Set aside $amt TND this week to stay on track for "$goalName".',
+      titleFr: '💡 Suggestion d\'épargne',
+      bodyFr:  'Mettez de côté $amt TND cette semaine pour rester sur la bonne voie pour "$goalName".',
+      titleAr: '💡 اقتراح ادخار',
+      bodyAr:  'خصّص $amt دينار هذا الأسبوع للبقاء على المسار الصحيح لـ "$goalName".',
+      type:    'saving_suggestion',
+      extra:   {'goalName': goalName, 'amount': amt},
       dedupKey: 'suggestion_${userId}_$goalName',
     );
   }
 
-  // ── Legacy helper kept for backwards compatibility ──────────
+  /// Sent after a successful password change.
+  /// push enabled → sent=false → Cloud Function sends FCM even when app is closed.
+  /// push disabled → sent=true → history-only, no FCM push.
+  static Future<void> sendPasswordChangedAlert({
+    required String userId,
+    required String email,
+  }) async {
+    final prefs       = await SharedPreferences.getInstance();
+    final pushEnabled = prefs.getBool('notif_security_alert') ?? true;
+
+    return _dispatch(
+      userId: userId,
+      title:   '🔐 Password changed',
+      body:    'Your password for $email was just updated. If this wasn\'t you, secure your account immediately.',
+      titleFr: '🔐 Mot de passe modifié',
+      bodyFr:  'Le mot de passe de votre compte $email vient d\'être mis à jour. Si ce n\'était pas vous, sécurisez votre compte immédiatement.',
+      titleAr: '🔐 تم تغيير كلمة المرور',
+      bodyAr:  'تم تحديث كلمة مرور حسابك $email للتو. إذا لم تكن أنت، فقم بتأمين حسابك فوراً.',
+      type:    'password_changed',
+      skipPush: !pushEnabled,
+    );
+  }
+
+  // ── Legacy helper ───────────────────────────────────────────
   static Future<void> sendNotificationToUser({
     required String userId,
     required String title,
@@ -352,11 +404,6 @@ class NotificationService {
     required String type,
     Map<String, String>? customData,
   }) =>
-      _dispatch(
-        userId: userId,
-        title: title,
-        body: body,
-        type: type,
-        extra: customData ?? {},
-      );
+      _dispatch(userId: userId, title: title, body: body, type: type,
+          extra: customData ?? {});
 }

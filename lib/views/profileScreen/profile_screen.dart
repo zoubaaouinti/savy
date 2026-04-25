@@ -15,6 +15,7 @@ import '../../models/profile_models.dart';
 import '../legalScreen/legal_screens.dart';
 import 'backup/backup_screen.dart'; // ← AJOUT IMPORT BACKUP
 import 'package:savy/l10n/app_localizations.dart';
+import '../notifications/notification_settings_screen.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  SAVVY – PROFILE SCREEN
@@ -1022,7 +1023,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.notifications_outlined,
                     label: l10n.profileNotifications,
                     color: const Color(0xFF00D4FF),
-                    trailing: _toggleWidget(true)),
+                    onTap: () => Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) =>
+                            const NotificationSettingsScreen(),
+                        transitionsBuilder: (_, a, __, child) =>
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                      begin: const Offset(1, 0),
+                                      end: Offset.zero)
+                                  .animate(CurvedAnimation(
+                                      parent: a,
+                                      curve: Curves.easeOutCubic)),
+                              child: child,
+                            ),
+                        transitionDuration:
+                            const Duration(milliseconds: 350),
+                      ),
+                    )),
                 _SettingItem(
                     icon: Icons.lock_outline_rounded,
                     label: l10n.profileSecurity,
@@ -1455,16 +1473,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  static Widget _toggleWidget(bool value) {
-    return Switch(
-      value: value,
-      onChanged: (_) {},
-      activeColor: const Color(0xFF3EFFA8),
-      activeTrackColor: const Color(0xFF3EFFA8).withOpacity(0.3),
-      inactiveThumbColor: const Color(0xFF3A5070),
-      inactiveTrackColor: const Color(0xFF1A2E52),
-    );
-  }
 }
 
 // ── Modèle item settings ──────────────────────────────────────

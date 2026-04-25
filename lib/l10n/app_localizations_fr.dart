@@ -1390,4 +1390,108 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get legalPrivacyS8Content =>
       'Vos données peuvent être transférées et traitées dans des pays autres que votre pays de résidence. Dans ce cas, nous nous assurons que des garanties appropriées sont en place, notamment via des clauses contractuelles types approuvées par la Commission européenne, pour protéger vos données.';
+
+  @override
+  String get notifSettingsTitle => 'Paramètres de notifications';
+
+  @override
+  String get notifSettingsEnableAll => 'Activer toutes les notifications';
+
+  @override
+  String get notifSettingsBudgetAlert => 'Alertes budget';
+
+  @override
+  String get notifSettingsBudgetAlertDesc =>
+      'Soyez notifié quand vous atteignez 90 % de votre budget';
+
+  @override
+  String get notifSettingsGoalReminder => 'Rappels d\'objectifs';
+
+  @override
+  String get notifSettingsGoalReminderDesc =>
+      'Rappels quand l\'échéance de votre objectif approche';
+
+  @override
+  String get notifSettingsGoalCompletion => 'Objectifs atteints';
+
+  @override
+  String get notifSettingsGoalCompletionDesc =>
+      'Célébrez quand vous atteignez un objectif d\'épargne';
+
+  @override
+  String get notifSettingsSavingSuggestion => 'Suggestions d\'épargne';
+
+  @override
+  String get notifSettingsSavingSuggestionDesc =>
+      'Conseils personnalisés pour vous aider à épargner davantage';
+
+  @override
+  String get notifSettingsSectionSecurity => 'Sécurité';
+
+  @override
+  String get notifSettingsSecurityAlert => 'Alertes de sécurité';
+
+  @override
+  String get notifSettingsSecurityAlertDesc =>
+      'Recevoir une notification push lors d\'un changement de mot de passe';
+
+  @override
+  String get notificationsPageTitle => 'Notifications';
+
+  @override
+  String get notificationsEmpty => 'Aucune notification pour l\'instant';
+
+  @override
+  String get notificationsEmptyDesc =>
+      'Vos alertes et rappels apparaîtront ici';
+
+  @override
+  String get notificationsMarkAllRead => 'Tout marquer comme lu';
+
+  @override
+  String get notificationsToday => 'Aujourd\'hui';
+
+  @override
+  String get notificationsEarlier => 'Précédemment';
+
+  @override
+  String get notificationsDeleteTitle => 'Supprimer la notification';
+
+  @override
+  String get notificationsDeleteDesc =>
+      'Cette notification sera définitivement supprimée.';
+
+  @override
+  String get notificationsDeleteAllTitle => 'Effacer toutes les notifications';
+
+  @override
+  String get notificationsDeleteAllDesc =>
+      'Toutes vos notifications seront définitivement supprimées.';
+
+  @override
+  String get notificationsCancel => 'Annuler';
+
+  @override
+  String get notificationsDelete => 'Supprimer';
+
+  @override
+  String get notificationsDeleteAll => 'Tout effacer';
+
+  @override
+  String get notifTimeJustNow => 'À l\'instant';
+
+  @override
+  String notifTimeMinutes(int n) {
+    return 'Il y a $n min';
+  }
+
+  @override
+  String notifTimeHours(int n) {
+    return 'Il y a $n h';
+  }
+
+  @override
+  String notifTimeDays(int n) {
+    return 'Il y a $n j';
+  }
 }
