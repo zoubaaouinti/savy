@@ -81,6 +81,12 @@ class DashboardViewModel extends ChangeNotifier {
   int    healthScore         = 0;
   double avgObjectivesProgress = 0;  // 0.0 – 1.0
 
+  int    budgetOverrunsAvoided    = 0;
+  int    activeSessionsThisWeek   = 0;
+  bool   hasRecentEntry           = false;
+  int    lastEntryDaysAgo         = -1;
+  double suggestionAcceptanceRate = 0.0;
+
   List<BudgetCategory> budgetCategories = [];
   List<WeeklyExpense>  weeklyExpenses   = [];
   List<Objective>      topObjectives    = [];
@@ -93,6 +99,9 @@ class DashboardViewModel extends ChangeNotifier {
 
   double get remainingBudget =>
       (totalIncome - totalExpenses).clamp(0.0, double.infinity);
+
+  bool get isOfflineSynced => _ready.containsAll(
+      {'user', 'revenues', 'budget', 'transactions', 'objectives'});
 
   String? get _uid => _auth.currentUser?.uid;
 
@@ -209,18 +218,61 @@ class DashboardViewModel extends ChangeNotifier {
     // ── Score de santé financière ─────────────────────────────
     final score = _computeHealthScore(income, expenses + objSaved);
 
+    // ── Dépassements de budget évités ─────────────────────────
+    final overrunsAvoided = categories.where((c) => c.spent <= c.budget).length;
+
+    // ── Sessions actives (jours distincts, 7 derniers jours) ──
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final activeDaySet = <String>{};
+    for (final doc in _txDocs) {
+      final d = doc.data() as Map<String, dynamic>;
+      final ms = (d['date'] ?? 0) as num;
+      final date = DateTime.fromMillisecondsSinceEpoch(ms.toInt());
+      if (date.isAfter(sevenDaysAgo)) {
+        activeDaySet.add('${date.year}-${date.month}-${date.day}');
+      }
+    }
+    final activeSessions = activeDaySet.length;
+
+    // ── Dernière saisie ────────────────────────────────────────
+    int entryDaysAgo = -1;
+    bool recentEntry = false;
+    if (_txDocs.isNotEmpty) {
+      final d = _txDocs.first.data() as Map<String, dynamic>;
+      final ms = (d['date'] ?? 0) as num;
+      if (ms > 0) {
+        final latest = DateTime.fromMillisecondsSinceEpoch(ms.toInt());
+        entryDaysAgo = DateTime.now().difference(latest).inDays;
+        recentEntry  = entryDaysAgo <= 7;
+      }
+    }
+
+    // ── Taux d'acceptation des suggestions ────────────────────
+    final totalObjCount  = _objDocs.length;
+    final activeObjCount = _objDocs.where((doc) {
+      final d = doc.data() as Map<String, dynamic>;
+      return ((d['currentAmount'] ?? 0) as num).toDouble() > 0;
+    }).length;
+    final suggRate =
+        totalObjCount > 0 ? activeObjCount / totalObjCount : 0.0;
+
     // ── Mise à jour de l'état ─────────────────────────────────
-    totalIncome           = income;
-    totalExpenses         = expenses;
-    totalObjectivesSaved  = objSaved;
-    totalBalance          = _cachedInitialBalance + income - expenses;
-    userName              = _cachedName;
-    healthScore           = score;
-    budgetCategories      = categories;
-    topObjectives         = objectives.where((o) => !o.isCompleted).take(3).toList();
-    recentTransactions    = recentTxs;
-    weeklyExpenses        = weekly;
-    avgObjectivesProgress = avgProgress;
+    totalIncome              = income;
+    totalExpenses            = expenses;
+    totalObjectivesSaved     = objSaved;
+    totalBalance             = _cachedInitialBalance + income - expenses;
+    userName                 = _cachedName;
+    healthScore              = score;
+    budgetCategories         = categories;
+    topObjectives            = objectives.where((o) => !o.isCompleted).take(3).toList();
+    recentTransactions       = recentTxs;
+    weeklyExpenses           = weekly;
+    avgObjectivesProgress    = avgProgress;
+    budgetOverrunsAvoided    = overrunsAvoided;
+    activeSessionsThisWeek   = activeSessions;
+    hasRecentEntry           = recentEntry;
+    lastEntryDaysAgo         = entryDaysAgo;
+    suggestionAcceptanceRate = suggRate;
 
     // isLoading = false seulement quand tous les 5 streams ont répondu
     isLoading = !_ready.containsAll(

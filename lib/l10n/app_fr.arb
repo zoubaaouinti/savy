@@ -141,6 +141,61 @@
       "percent": { "type": "String" }
     }
   },
+  "homeExpenseBreakdown": "Répartition des dépenses",
+  "homeWeeklyEvolution": "Évolution hebdomadaire",
+  "homeAvgProgress": "Progression moyenne",
+  "homeKeyIndicators": "Indicateurs clés",
+  "homeGaugeUsed": "utilisé",
+  "homeGaugeRemaining": "Restant : {amount}",
+  "@homeGaugeRemaining": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "kpiHealthTitle": "Santé financière",
+  "kpiHealthTooltipTitle": "Score de santé financière",
+  "kpiHealthTooltipBody": "Calculé sur le ratio dépenses / revenus. 100 = budget parfaitement maîtrisé. En dessous de 50, vos dépenses approchent ou dépassent vos revenus.",
+  "kpiSuggestionsTitle": "Suggestions",
+  "kpiSuggestionsSubtitle": "acceptées",
+  "kpiSuggestionsTooltipTitle": "Taux d'acceptation",
+  "kpiSuggestionsTooltipBody": "Proportion des objectifs d'épargne sur lesquels vous avez commencé à épargner. Reflète votre engagement sur les suggestions proposées.",
+  "kpiObjectivesTitle": "Objectifs",
+  "kpiObjectivesSubtitle": "progression moy.",
+  "kpiObjectivesTooltipTitle": "Progression des objectifs",
+  "kpiObjectivesTooltipBody": "Moyenne de la progression de tous vos objectifs d'épargne actifs. 100 % signifie que tous vos objectifs sont atteints.",
+  "kpiBudgetOutOf": "sur {total}",
+  "@kpiBudgetOutOf": {
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+  "kpiBudgetNotExceeded": "non dépassés",
+  "kpiBudgetTooltipTitle": "Dépassements évités",
+  "kpiBudgetTooltipBody": "Nombre de catégories de budget dont les dépenses restent en dessous de la limite fixée ce mois-ci. Plus le nombre est élevé, mieux c'est.",
+  "kpiSessionsOf7": "/ 7 jours",
+  "kpiSessionsThisWeek": "cette semaine",
+  "kpiSessionsTooltipTitle": "Sessions actives",
+  "kpiSessionsTooltipBody": "Nombre de jours différents où vous avez saisi au moins une transaction durant les 7 derniers jours.",
+  "kpiLastEntry": "Dernière saisie",
+  "kpiToday": "Aujourd'hui",
+  "kpiYesterday": "Hier",
+  "kpiDaysAgo": "Il y a {days} j.",
+  "@kpiDaysAgo": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "kpiOver7Days": "+7 jours",
+  "kpiNoEntry": "Aucune saisie",
+  "kpiEntryTooltipTitle": "Saisie régulière",
+  "kpiEntryTooltipBody": "Vert : vous avez saisi une dépense ou un revenu dans les 7 derniers jours. Orange : aucune saisie récente détectée, pensez à mettre vos finances à jour.",
+  "kpiSynced": "Synchronisé",
+  "kpiOffline": "Hors ligne",
+  "kpiSyncTooltipTitle": "Synchronisation",
+  "kpiSyncTooltipBody": "Indique si toutes vos données sont synchronisées en temps réel avec Firestore. Le badge devient actif dès que les 5 flux de données sont reçus.",
+  "kpiDismiss": "Compris",
+  "chartNoExpenses": "Aucune dépense à afficher",
 
   "budgetTitle": "Budget",
   "budgetSubtitle": "Gérez vos dépenses",

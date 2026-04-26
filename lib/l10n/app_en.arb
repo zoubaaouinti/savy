@@ -141,6 +141,61 @@
       "percent": { "type": "String" }
     }
   },
+  "homeExpenseBreakdown": "Expense breakdown",
+  "homeWeeklyEvolution": "Weekly evolution",
+  "homeAvgProgress": "Average progress",
+  "homeKeyIndicators": "Key indicators",
+  "homeGaugeUsed": "used",
+  "homeGaugeRemaining": "Remaining: {amount}",
+  "@homeGaugeRemaining": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "kpiHealthTitle": "Financial health",
+  "kpiHealthTooltipTitle": "Financial health score",
+  "kpiHealthTooltipBody": "Calculated from your expense/income ratio. 100 = perfectly managed budget. Below 50, your expenses are approaching or exceeding your income.",
+  "kpiSuggestionsTitle": "Suggestions",
+  "kpiSuggestionsSubtitle": "accepted",
+  "kpiSuggestionsTooltipTitle": "Acceptance rate",
+  "kpiSuggestionsTooltipBody": "Proportion of savings goals on which you have started saving. Reflects your engagement with the suggested goals.",
+  "kpiObjectivesTitle": "Objectives",
+  "kpiObjectivesSubtitle": "avg. progress",
+  "kpiObjectivesTooltipTitle": "Objectives progress",
+  "kpiObjectivesTooltipBody": "Average progress across all your active savings goals. 100% means all your objectives are reached.",
+  "kpiBudgetOutOf": "out of {total}",
+  "@kpiBudgetOutOf": {
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+  "kpiBudgetNotExceeded": "not exceeded",
+  "kpiBudgetTooltipTitle": "Overruns avoided",
+  "kpiBudgetTooltipBody": "Number of budget categories whose spending stays below the set limit this month. The higher the number, the better.",
+  "kpiSessionsOf7": "/ 7 days",
+  "kpiSessionsThisWeek": "this week",
+  "kpiSessionsTooltipTitle": "Active sessions",
+  "kpiSessionsTooltipBody": "Number of distinct days on which you entered at least one transaction in the last 7 days.",
+  "kpiLastEntry": "Last entry",
+  "kpiToday": "Today",
+  "kpiYesterday": "Yesterday",
+  "kpiDaysAgo": "{days}d ago",
+  "@kpiDaysAgo": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "kpiOver7Days": "+7 days",
+  "kpiNoEntry": "No entry",
+  "kpiEntryTooltipTitle": "Regular entry",
+  "kpiEntryTooltipBody": "Green: you entered an expense or income in the last 7 days. Orange: no recent entry detected — remember to keep your finances up to date.",
+  "kpiSynced": "Synced",
+  "kpiOffline": "Offline",
+  "kpiSyncTooltipTitle": "Synchronisation",
+  "kpiSyncTooltipBody": "Indicates whether all your data is synchronised in real time with Firestore. The badge activates once all 5 data streams are received.",
+  "kpiDismiss": "Got it",
+  "chartNoExpenses": "No expenses to display",
 
   "budgetTitle": "Budget",
   "budgetSubtitle": "Manage your expenses",

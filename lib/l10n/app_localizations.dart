@@ -808,6 +808,240 @@ abstract class AppLocalizations {
   /// **'{percent}% atteint'**
   String homeObjectiveProgress(String percent);
 
+  /// No description provided for @homeExpenseBreakdown.
+  ///
+  /// In fr, this message translates to:
+  /// **'Répartition des dépenses'**
+  String get homeExpenseBreakdown;
+
+  /// No description provided for @homeWeeklyEvolution.
+  ///
+  /// In fr, this message translates to:
+  /// **'Évolution hebdomadaire'**
+  String get homeWeeklyEvolution;
+
+  /// No description provided for @homeAvgProgress.
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression moyenne'**
+  String get homeAvgProgress;
+
+  /// No description provided for @homeKeyIndicators.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indicateurs clés'**
+  String get homeKeyIndicators;
+
+  /// No description provided for @homeGaugeUsed.
+  ///
+  /// In fr, this message translates to:
+  /// **'utilisé'**
+  String get homeGaugeUsed;
+
+  /// No description provided for @homeGaugeRemaining.
+  ///
+  /// In fr, this message translates to:
+  /// **'Restant : {amount}'**
+  String homeGaugeRemaining(String amount);
+
+  /// No description provided for @kpiHealthTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Santé financière'**
+  String get kpiHealthTitle;
+
+  /// No description provided for @kpiHealthTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Score de santé financière'**
+  String get kpiHealthTooltipTitle;
+
+  /// No description provided for @kpiHealthTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Calculé sur le ratio dépenses / revenus. 100 = budget parfaitement maîtrisé. En dessous de 50, vos dépenses approchent ou dépassent vos revenus.'**
+  String get kpiHealthTooltipBody;
+
+  /// No description provided for @kpiSuggestionsTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Suggestions'**
+  String get kpiSuggestionsTitle;
+
+  /// No description provided for @kpiSuggestionsSubtitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'acceptées'**
+  String get kpiSuggestionsSubtitle;
+
+  /// No description provided for @kpiSuggestionsTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Taux d\'acceptation'**
+  String get kpiSuggestionsTooltipTitle;
+
+  /// No description provided for @kpiSuggestionsTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Proportion des objectifs d\'épargne sur lesquels vous avez commencé à épargner. Reflète votre engagement sur les suggestions proposées.'**
+  String get kpiSuggestionsTooltipBody;
+
+  /// No description provided for @kpiObjectivesTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Objectifs'**
+  String get kpiObjectivesTitle;
+
+  /// No description provided for @kpiObjectivesSubtitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'progression moy.'**
+  String get kpiObjectivesSubtitle;
+
+  /// No description provided for @kpiObjectivesTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression des objectifs'**
+  String get kpiObjectivesTooltipTitle;
+
+  /// No description provided for @kpiObjectivesTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Moyenne de la progression de tous vos objectifs d\'épargne actifs. 100 % signifie que tous vos objectifs sont atteints.'**
+  String get kpiObjectivesTooltipBody;
+
+  /// No description provided for @kpiBudgetOutOf.
+  ///
+  /// In fr, this message translates to:
+  /// **'sur {total}'**
+  String kpiBudgetOutOf(int total);
+
+  /// No description provided for @kpiBudgetNotExceeded.
+  ///
+  /// In fr, this message translates to:
+  /// **'non dépassés'**
+  String get kpiBudgetNotExceeded;
+
+  /// No description provided for @kpiBudgetTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dépassements évités'**
+  String get kpiBudgetTooltipTitle;
+
+  /// No description provided for @kpiBudgetTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nombre de catégories de budget dont les dépenses restent en dessous de la limite fixée ce mois-ci. Plus le nombre est élevé, mieux c\'est.'**
+  String get kpiBudgetTooltipBody;
+
+  /// No description provided for @kpiSessionsOf7.
+  ///
+  /// In fr, this message translates to:
+  /// **'/ 7 jours'**
+  String get kpiSessionsOf7;
+
+  /// No description provided for @kpiSessionsThisWeek.
+  ///
+  /// In fr, this message translates to:
+  /// **'cette semaine'**
+  String get kpiSessionsThisWeek;
+
+  /// No description provided for @kpiSessionsTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Sessions actives'**
+  String get kpiSessionsTooltipTitle;
+
+  /// No description provided for @kpiSessionsTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Nombre de jours différents où vous avez saisi au moins une transaction durant les 7 derniers jours.'**
+  String get kpiSessionsTooltipBody;
+
+  /// No description provided for @kpiLastEntry.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dernière saisie'**
+  String get kpiLastEntry;
+
+  /// No description provided for @kpiToday.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get kpiToday;
+
+  /// No description provided for @kpiYesterday.
+  ///
+  /// In fr, this message translates to:
+  /// **'Hier'**
+  String get kpiYesterday;
+
+  /// No description provided for @kpiDaysAgo.
+  ///
+  /// In fr, this message translates to:
+  /// **'Il y a {days} j.'**
+  String kpiDaysAgo(int days);
+
+  /// No description provided for @kpiOver7Days.
+  ///
+  /// In fr, this message translates to:
+  /// **'+7 jours'**
+  String get kpiOver7Days;
+
+  /// No description provided for @kpiNoEntry.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune saisie'**
+  String get kpiNoEntry;
+
+  /// No description provided for @kpiEntryTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Saisie régulière'**
+  String get kpiEntryTooltipTitle;
+
+  /// No description provided for @kpiEntryTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Vert : vous avez saisi une dépense ou un revenu dans les 7 derniers jours. Orange : aucune saisie récente détectée, pensez à mettre vos finances à jour.'**
+  String get kpiEntryTooltipBody;
+
+  /// No description provided for @kpiSynced.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchronisé'**
+  String get kpiSynced;
+
+  /// No description provided for @kpiOffline.
+  ///
+  /// In fr, this message translates to:
+  /// **'Hors ligne'**
+  String get kpiOffline;
+
+  /// No description provided for @kpiSyncTooltipTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Synchronisation'**
+  String get kpiSyncTooltipTitle;
+
+  /// No description provided for @kpiSyncTooltipBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Indique si toutes vos données sont synchronisées en temps réel avec Firestore. Le badge devient actif dès que les 5 flux de données sont reçus.'**
+  String get kpiSyncTooltipBody;
+
+  /// No description provided for @kpiDismiss.
+  ///
+  /// In fr, this message translates to:
+  /// **'Compris'**
+  String get kpiDismiss;
+
+  /// No description provided for @chartNoExpenses.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune dépense à afficher'**
+  String get chartNoExpenses;
+
   /// No description provided for @budgetTitle.
   ///
   /// In fr, this message translates to:
@@ -2895,12 +3129,6 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Évolution hebdomadaire'**
   String get homeWeeklyTrend;
-
-  /// No description provided for @homeAvgProgress.
-  ///
-  /// In fr, this message translates to:
-  /// **'Progression moyenne'**
-  String get homeAvgProgress;
 }
 
 class _AppLocalizationsDelegate

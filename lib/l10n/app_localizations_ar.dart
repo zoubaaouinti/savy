@@ -372,6 +372,136 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get homeExpenseBreakdown => 'توزيع المصاريف';
+
+  @override
+  String get homeWeeklyEvolution => 'التطور الأسبوعي';
+
+  @override
+  String get homeAvgProgress => 'متوسط التقدم';
+
+  @override
+  String get homeKeyIndicators => 'المؤشرات الرئيسية';
+
+  @override
+  String get homeGaugeUsed => 'مستخدم';
+
+  @override
+  String homeGaugeRemaining(String amount) {
+    return 'المتبقي: $amount';
+  }
+
+  @override
+  String get kpiHealthTitle => 'الصحة المالية';
+
+  @override
+  String get kpiHealthTooltipTitle => 'درجة الصحة المالية';
+
+  @override
+  String get kpiHealthTooltipBody =>
+      'تُحسب من نسبة المصاريف إلى الدخل. 100 = ميزانية مُدارة بشكل مثالي. أقل من 50 يعني أن مصاريفك تقترب من دخلك أو تتجاوزه.';
+
+  @override
+  String get kpiSuggestionsTitle => 'الاقتراحات';
+
+  @override
+  String get kpiSuggestionsSubtitle => 'مقبولة';
+
+  @override
+  String get kpiSuggestionsTooltipTitle => 'معدل القبول';
+
+  @override
+  String get kpiSuggestionsTooltipBody =>
+      'نسبة أهداف الادخار التي بدأت فيها الادخار فعلاً. تعكس مدى التزامك بالاقتراحات المقدَّمة.';
+
+  @override
+  String get kpiObjectivesTitle => 'الأهداف';
+
+  @override
+  String get kpiObjectivesSubtitle => 'متوسط التقدم';
+
+  @override
+  String get kpiObjectivesTooltipTitle => 'تقدم الأهداف';
+
+  @override
+  String get kpiObjectivesTooltipBody =>
+      'متوسط التقدم لجميع أهداف الادخار النشطة. 100% تعني تحقيق جميع أهدافك.';
+
+  @override
+  String kpiBudgetOutOf(int total) {
+    return 'من $total';
+  }
+
+  @override
+  String get kpiBudgetNotExceeded => 'لم تُتجاوز';
+
+  @override
+  String get kpiBudgetTooltipTitle => 'تجاوزات تم تفاديها';
+
+  @override
+  String get kpiBudgetTooltipBody =>
+      'عدد فئات الميزانية التي ظلت مصاريفها دون الحد المحدد هذا الشهر. كلما ارتفع العدد، كان ذلك أفضل.';
+
+  @override
+  String get kpiSessionsOf7 => '/ 7 أيام';
+
+  @override
+  String get kpiSessionsThisWeek => 'هذا الأسبوع';
+
+  @override
+  String get kpiSessionsTooltipTitle => 'الجلسات النشطة';
+
+  @override
+  String get kpiSessionsTooltipBody =>
+      'عدد الأيام المختلفة التي أدخلت فيها معاملة واحدة على الأقل خلال الـ 7 أيام الأخيرة.';
+
+  @override
+  String get kpiLastEntry => 'آخر إدخال';
+
+  @override
+  String get kpiToday => 'اليوم';
+
+  @override
+  String get kpiYesterday => 'أمس';
+
+  @override
+  String kpiDaysAgo(int days) {
+    return 'منذ $days أيام';
+  }
+
+  @override
+  String get kpiOver7Days => '+7 أيام';
+
+  @override
+  String get kpiNoEntry => 'لا يوجد إدخال';
+
+  @override
+  String get kpiEntryTooltipTitle => 'الإدخال المنتظم';
+
+  @override
+  String get kpiEntryTooltipBody =>
+      'أخضر: أدخلت مصروفاً أو دخلاً خلال الـ 7 أيام الأخيرة. برتقالي: لا يوجد إدخال حديث — تذكر تحديث بياناتك المالية.';
+
+  @override
+  String get kpiSynced => 'متزامن';
+
+  @override
+  String get kpiOffline => 'غير متصل';
+
+  @override
+  String get kpiSyncTooltipTitle => 'المزامنة';
+
+  @override
+  String get kpiSyncTooltipBody =>
+      'يشير إلى ما إذا كانت جميع بياناتك متزامنة في الوقت الفعلي مع Firestore. يصبح الشارة نشطة بمجرد استقبال الـ 5 تدفقات البيانات.';
+
+  @override
+  String get kpiDismiss => 'حسناً';
+
+  @override
+  String get chartNoExpenses => 'لا توجد مصاريف للعرض';
+
+  @override
   String get budgetTitle => 'الميزانية';
 
   @override
@@ -1481,7 +1611,4 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get homeWeeklyTrend => 'التطور الأسبوعي';
-
-  @override
-  String get homeAvgProgress => 'متوسط التقدم';
 }

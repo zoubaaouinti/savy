@@ -373,6 +373,136 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get homeExpenseBreakdown => 'Expense breakdown';
+
+  @override
+  String get homeWeeklyEvolution => 'Weekly evolution';
+
+  @override
+  String get homeAvgProgress => 'Average progress';
+
+  @override
+  String get homeKeyIndicators => 'Key indicators';
+
+  @override
+  String get homeGaugeUsed => 'used';
+
+  @override
+  String homeGaugeRemaining(String amount) {
+    return 'Remaining: $amount';
+  }
+
+  @override
+  String get kpiHealthTitle => 'Financial health';
+
+  @override
+  String get kpiHealthTooltipTitle => 'Financial health score';
+
+  @override
+  String get kpiHealthTooltipBody =>
+      'Calculated from your expense/income ratio. 100 = perfectly managed budget. Below 50, your expenses are approaching or exceeding your income.';
+
+  @override
+  String get kpiSuggestionsTitle => 'Suggestions';
+
+  @override
+  String get kpiSuggestionsSubtitle => 'accepted';
+
+  @override
+  String get kpiSuggestionsTooltipTitle => 'Acceptance rate';
+
+  @override
+  String get kpiSuggestionsTooltipBody =>
+      'Proportion of savings goals on which you have started saving. Reflects your engagement with the suggested goals.';
+
+  @override
+  String get kpiObjectivesTitle => 'Objectives';
+
+  @override
+  String get kpiObjectivesSubtitle => 'avg. progress';
+
+  @override
+  String get kpiObjectivesTooltipTitle => 'Objectives progress';
+
+  @override
+  String get kpiObjectivesTooltipBody =>
+      'Average progress across all your active savings goals. 100% means all your objectives are reached.';
+
+  @override
+  String kpiBudgetOutOf(int total) {
+    return 'out of $total';
+  }
+
+  @override
+  String get kpiBudgetNotExceeded => 'not exceeded';
+
+  @override
+  String get kpiBudgetTooltipTitle => 'Overruns avoided';
+
+  @override
+  String get kpiBudgetTooltipBody =>
+      'Number of budget categories whose spending stays below the set limit this month. The higher the number, the better.';
+
+  @override
+  String get kpiSessionsOf7 => '/ 7 days';
+
+  @override
+  String get kpiSessionsThisWeek => 'this week';
+
+  @override
+  String get kpiSessionsTooltipTitle => 'Active sessions';
+
+  @override
+  String get kpiSessionsTooltipBody =>
+      'Number of distinct days on which you entered at least one transaction in the last 7 days.';
+
+  @override
+  String get kpiLastEntry => 'Last entry';
+
+  @override
+  String get kpiToday => 'Today';
+
+  @override
+  String get kpiYesterday => 'Yesterday';
+
+  @override
+  String kpiDaysAgo(int days) {
+    return '${days}d ago';
+  }
+
+  @override
+  String get kpiOver7Days => '+7 days';
+
+  @override
+  String get kpiNoEntry => 'No entry';
+
+  @override
+  String get kpiEntryTooltipTitle => 'Regular entry';
+
+  @override
+  String get kpiEntryTooltipBody =>
+      'Green: you entered an expense or income in the last 7 days. Orange: no recent entry detected — remember to keep your finances up to date.';
+
+  @override
+  String get kpiSynced => 'Synced';
+
+  @override
+  String get kpiOffline => 'Offline';
+
+  @override
+  String get kpiSyncTooltipTitle => 'Synchronisation';
+
+  @override
+  String get kpiSyncTooltipBody =>
+      'Indicates whether all your data is synchronised in real time with Firestore. The badge activates once all 5 data streams are received.';
+
+  @override
+  String get kpiDismiss => 'Got it';
+
+  @override
+  String get chartNoExpenses => 'No expenses to display';
+
+  @override
   String get budgetTitle => 'Budget';
 
   @override
@@ -1490,7 +1620,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeWeeklyTrend => 'Weekly trend';
-
-  @override
-  String get homeAvgProgress => 'Average progress';
 }

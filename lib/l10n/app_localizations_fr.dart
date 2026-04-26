@@ -375,6 +375,136 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get homeExpenseBreakdown => 'Répartition des dépenses';
+
+  @override
+  String get homeWeeklyEvolution => 'Évolution hebdomadaire';
+
+  @override
+  String get homeAvgProgress => 'Progression moyenne';
+
+  @override
+  String get homeKeyIndicators => 'Indicateurs clés';
+
+  @override
+  String get homeGaugeUsed => 'utilisé';
+
+  @override
+  String homeGaugeRemaining(String amount) {
+    return 'Restant : $amount';
+  }
+
+  @override
+  String get kpiHealthTitle => 'Santé financière';
+
+  @override
+  String get kpiHealthTooltipTitle => 'Score de santé financière';
+
+  @override
+  String get kpiHealthTooltipBody =>
+      'Calculé sur le ratio dépenses / revenus. 100 = budget parfaitement maîtrisé. En dessous de 50, vos dépenses approchent ou dépassent vos revenus.';
+
+  @override
+  String get kpiSuggestionsTitle => 'Suggestions';
+
+  @override
+  String get kpiSuggestionsSubtitle => 'acceptées';
+
+  @override
+  String get kpiSuggestionsTooltipTitle => 'Taux d\'acceptation';
+
+  @override
+  String get kpiSuggestionsTooltipBody =>
+      'Proportion des objectifs d\'épargne sur lesquels vous avez commencé à épargner. Reflète votre engagement sur les suggestions proposées.';
+
+  @override
+  String get kpiObjectivesTitle => 'Objectifs';
+
+  @override
+  String get kpiObjectivesSubtitle => 'progression moy.';
+
+  @override
+  String get kpiObjectivesTooltipTitle => 'Progression des objectifs';
+
+  @override
+  String get kpiObjectivesTooltipBody =>
+      'Moyenne de la progression de tous vos objectifs d\'épargne actifs. 100 % signifie que tous vos objectifs sont atteints.';
+
+  @override
+  String kpiBudgetOutOf(int total) {
+    return 'sur $total';
+  }
+
+  @override
+  String get kpiBudgetNotExceeded => 'non dépassés';
+
+  @override
+  String get kpiBudgetTooltipTitle => 'Dépassements évités';
+
+  @override
+  String get kpiBudgetTooltipBody =>
+      'Nombre de catégories de budget dont les dépenses restent en dessous de la limite fixée ce mois-ci. Plus le nombre est élevé, mieux c\'est.';
+
+  @override
+  String get kpiSessionsOf7 => '/ 7 jours';
+
+  @override
+  String get kpiSessionsThisWeek => 'cette semaine';
+
+  @override
+  String get kpiSessionsTooltipTitle => 'Sessions actives';
+
+  @override
+  String get kpiSessionsTooltipBody =>
+      'Nombre de jours différents où vous avez saisi au moins une transaction durant les 7 derniers jours.';
+
+  @override
+  String get kpiLastEntry => 'Dernière saisie';
+
+  @override
+  String get kpiToday => 'Aujourd\'hui';
+
+  @override
+  String get kpiYesterday => 'Hier';
+
+  @override
+  String kpiDaysAgo(int days) {
+    return 'Il y a $days j.';
+  }
+
+  @override
+  String get kpiOver7Days => '+7 jours';
+
+  @override
+  String get kpiNoEntry => 'Aucune saisie';
+
+  @override
+  String get kpiEntryTooltipTitle => 'Saisie régulière';
+
+  @override
+  String get kpiEntryTooltipBody =>
+      'Vert : vous avez saisi une dépense ou un revenu dans les 7 derniers jours. Orange : aucune saisie récente détectée, pensez à mettre vos finances à jour.';
+
+  @override
+  String get kpiSynced => 'Synchronisé';
+
+  @override
+  String get kpiOffline => 'Hors ligne';
+
+  @override
+  String get kpiSyncTooltipTitle => 'Synchronisation';
+
+  @override
+  String get kpiSyncTooltipBody =>
+      'Indique si toutes vos données sont synchronisées en temps réel avec Firestore. Le badge devient actif dès que les 5 flux de données sont reçus.';
+
+  @override
+  String get kpiDismiss => 'Compris';
+
+  @override
+  String get chartNoExpenses => 'Aucune dépense à afficher';
+
+  @override
   String get budgetTitle => 'Budget';
 
   @override
@@ -1500,7 +1630,4 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get homeWeeklyTrend => 'Évolution hebdomadaire';
-
-  @override
-  String get homeAvgProgress => 'Progression moyenne';
 }

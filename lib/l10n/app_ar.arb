@@ -141,6 +141,61 @@
       "percent": { "type": "String" }
     }
   },
+  "homeExpenseBreakdown": "توزيع المصاريف",
+  "homeWeeklyEvolution": "التطور الأسبوعي",
+  "homeAvgProgress": "متوسط التقدم",
+  "homeKeyIndicators": "المؤشرات الرئيسية",
+  "homeGaugeUsed": "مستخدم",
+  "homeGaugeRemaining": "المتبقي: {amount}",
+  "@homeGaugeRemaining": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "kpiHealthTitle": "الصحة المالية",
+  "kpiHealthTooltipTitle": "درجة الصحة المالية",
+  "kpiHealthTooltipBody": "تُحسب من نسبة المصاريف إلى الدخل. 100 = ميزانية مُدارة بشكل مثالي. أقل من 50 يعني أن مصاريفك تقترب من دخلك أو تتجاوزه.",
+  "kpiSuggestionsTitle": "الاقتراحات",
+  "kpiSuggestionsSubtitle": "مقبولة",
+  "kpiSuggestionsTooltipTitle": "معدل القبول",
+  "kpiSuggestionsTooltipBody": "نسبة أهداف الادخار التي بدأت فيها الادخار فعلاً. تعكس مدى التزامك بالاقتراحات المقدَّمة.",
+  "kpiObjectivesTitle": "الأهداف",
+  "kpiObjectivesSubtitle": "متوسط التقدم",
+  "kpiObjectivesTooltipTitle": "تقدم الأهداف",
+  "kpiObjectivesTooltipBody": "متوسط التقدم لجميع أهداف الادخار النشطة. 100% تعني تحقيق جميع أهدافك.",
+  "kpiBudgetOutOf": "من {total}",
+  "@kpiBudgetOutOf": {
+    "placeholders": {
+      "total": { "type": "int" }
+    }
+  },
+  "kpiBudgetNotExceeded": "لم تُتجاوز",
+  "kpiBudgetTooltipTitle": "تجاوزات تم تفاديها",
+  "kpiBudgetTooltipBody": "عدد فئات الميزانية التي ظلت مصاريفها دون الحد المحدد هذا الشهر. كلما ارتفع العدد، كان ذلك أفضل.",
+  "kpiSessionsOf7": "/ 7 أيام",
+  "kpiSessionsThisWeek": "هذا الأسبوع",
+  "kpiSessionsTooltipTitle": "الجلسات النشطة",
+  "kpiSessionsTooltipBody": "عدد الأيام المختلفة التي أدخلت فيها معاملة واحدة على الأقل خلال الـ 7 أيام الأخيرة.",
+  "kpiLastEntry": "آخر إدخال",
+  "kpiToday": "اليوم",
+  "kpiYesterday": "أمس",
+  "kpiDaysAgo": "منذ {days} أيام",
+  "@kpiDaysAgo": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "kpiOver7Days": "+7 أيام",
+  "kpiNoEntry": "لا يوجد إدخال",
+  "kpiEntryTooltipTitle": "الإدخال المنتظم",
+  "kpiEntryTooltipBody": "أخضر: أدخلت مصروفاً أو دخلاً خلال الـ 7 أيام الأخيرة. برتقالي: لا يوجد إدخال حديث — تذكر تحديث بياناتك المالية.",
+  "kpiSynced": "متزامن",
+  "kpiOffline": "غير متصل",
+  "kpiSyncTooltipTitle": "المزامنة",
+  "kpiSyncTooltipBody": "يشير إلى ما إذا كانت جميع بياناتك متزامنة في الوقت الفعلي مع Firestore. يصبح الشارة نشطة بمجرد استقبال الـ 5 تدفقات البيانات.",
+  "kpiDismiss": "حسناً",
+  "chartNoExpenses": "لا توجد مصاريف للعرض",
 
   "budgetTitle": "الميزانية",
   "budgetSubtitle": "أدر مصاريفك",
