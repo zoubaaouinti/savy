@@ -573,5 +573,9 @@
   "notifTimeHours": "{n}h ago",
   "@notifTimeHours": { "placeholders": { "n": { "type": "int" } } },
   "notifTimeDays": "{n}d ago",
-  "@notifTimeDays": { "placeholders": { "n": { "type": "int" } } }
+  "@notifTimeDays": { "placeholders": { "n": { "type": "int" } } },
+
+  "homeSpendingBreakdown": "Spending breakdown",
+  "homeWeeklyTrend": "Weekly trend",
+  "homeAvgProgress": "Average progress"
 }

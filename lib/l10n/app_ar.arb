@@ -573,5 +573,9 @@
   "notifTimeHours": "منذ {n} س",
   "@notifTimeHours": { "placeholders": { "n": { "type": "int" } } },
   "notifTimeDays": "منذ {n} ي",
-  "@notifTimeDays": { "placeholders": { "n": { "type": "int" } } }
+  "@notifTimeDays": { "placeholders": { "n": { "type": "int" } } },
+
+  "homeSpendingBreakdown": "توزيع المصاريف",
+  "homeWeeklyTrend": "التطور الأسبوعي",
+  "homeAvgProgress": "متوسط التقدم"
 }

@@ -4,7 +4,13 @@
       "Bash(xargs cat *)",
       "Bash(flutter analyze *)",
       "Bash(flutter gen-l10n *)",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase functions:list)",
+      "Bash(firebase functions:list --project savy-d40cc)",
+      "Bash(dart run *)",
+      "Bash(powershell -Command \"\\(Get-Content 'lib\\\\views\\\\home\\\\home_screen.dart'\\) -replace '\\\\.withOpacity\\\\\\(', '.withValues\\(alpha: ' | Set-Content 'lib\\\\views\\\\home\\\\home_screen.dart' -Encoding UTF8\")",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Users\\\\nizar\\\\Documents\\\\GitHub\\\\savy\\\\functions\")"
     ]
   }
 }

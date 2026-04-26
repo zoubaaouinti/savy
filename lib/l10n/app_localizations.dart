@@ -2883,6 +2883,24 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Il y a {n} j'**
   String notifTimeDays(int n);
+
+  /// No description provided for @homeSpendingBreakdown.
+  ///
+  /// In fr, this message translates to:
+  /// **'Répartition des dépenses'**
+  String get homeSpendingBreakdown;
+
+  /// No description provided for @homeWeeklyTrend.
+  ///
+  /// In fr, this message translates to:
+  /// **'Évolution hebdomadaire'**
+  String get homeWeeklyTrend;
+
+  /// No description provided for @homeAvgProgress.
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression moyenne'**
+  String get homeAvgProgress;
 }
 
 class _AppLocalizationsDelegate

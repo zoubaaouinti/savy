@@ -132,6 +132,9 @@ class _SecurityScreenState extends State<SecurityScreen>
         _passStrength = 0;
         _passStrengthLabel = '';
       });
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      Navigator.of(context).pop();
     } on FirebaseAuthException catch (e) {
       setState(() { _isLoading = false; _errorMessage = _mapError(e.code); });
     } catch (e) {

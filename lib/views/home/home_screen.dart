@@ -1,6 +1,9 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:savy/l10n/app_localizations.dart';
 
@@ -14,14 +17,14 @@ import '../../widgets/charts/weekly_bar_chart.dart';
 import '../mainLayout/main_layout.dart';
 import '../notifications/notifications_screen.dart';
 
-// ══════════════════════════════════════════════════════════════
-//  HOME SCREEN – Tableau de bord dynamique
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  HOME SCREEN â€“ Tableau de bord dynamique
 //  Architecture MVVM : HomeScreen fournit le DashboardViewModel
 //  via ChangeNotifierProvider. _HomeView consomme ce ViewModel
-//  et affiche tous les KPI en temps réel via Firestore streams.
-// ══════════════════════════════════════════════════════════════
+//  et affiche tous les KPI en temps rÃ©el via Firestore streams.
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-/// Wrapper Provider : crée le ViewModel et le fournit à l'arbre
+/// Wrapper Provider : crÃ©e le ViewModel et le fournit Ã  l'arbre
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -34,7 +37,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ── Vue principale ────────────────────────────────────────────
+// â”€â”€ Vue principale â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HomeView extends StatefulWidget {
   const _HomeView();
@@ -82,16 +85,17 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final vm   = context.watch<DashboardViewModel>();
-    final cur  = context.watch<CurrencyProvider>();
-    final l10n = AppLocalizations.of(context);
-    final size = MediaQuery.of(context).size;
+    final vm     = context.watch<DashboardViewModel>();
+    final cur    = context.watch<CurrencyProvider>();
+    final l10n   = AppLocalizations.of(context);
+    final size   = MediaQuery.of(context).size;
+    final locale = Localizations.localeOf(context).languageCode;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // ── Fond animé ─────────────────────────────────────
+          // â”€â”€ Fond animÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           AnimatedBuilder(
             animation: _bgAnim,
             builder: (_, __) => CustomPaint(
@@ -101,7 +105,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ),
           _GridPainter.widget(size),
 
-          // ── Contenu ────────────────────────────────────────
+          // â”€â”€ Contenu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           SafeArea(
             child: vm.isLoading
                 ? const Center(
@@ -115,8 +119,8 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                     child: RefreshIndicator(
                       color:           const Color(0xFF3EFFA8),
                       backgroundColor: const Color(0xFF0B1535),
-                      // Forcer un rechargement = re-créer le ViewModel via setState du parent
-                      // Le Provider se met à jour automatiquement via les streams
+                      // Forcer un rechargement = re-crÃ©er le ViewModel via setState du parent
+                      // Le Provider se met Ã  jour automatiquement via les streams
                       onRefresh: () async =>
                           context.read<DashboardViewModel>().init(),
                       child: SingleChildScrollView(
@@ -129,25 +133,25 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                           children: [
                             const SizedBox(height: 20),
 
-                            // 1. En-tête : bonjour + notifications
-                            _buildTopBar(vm, l10n),
+                            // 1. En-tÃªte : bonjour + notifications
+                            _buildTopBar(vm, l10n, locale),
                             const SizedBox(height: 24),
 
                             // 2. Carte solde + jauge demi-cercle
-                            _buildBalanceCard(vm, cur, l10n, size),
+                            _buildBalanceCard(vm, cur, l10n, size, locale),
                             const SizedBox(height: 20),
 
-                            // 3. Revenus | Dépenses
+                            // 3. Revenus | DÃ©penses
                             _buildIncomeExpenseRow(vm, cur, l10n),
                             const SizedBox(height: 20),
 
-                            // 4. Score de santé financière
+                            // 4. Score de santÃ© financiÃ¨re
                             _buildHealthScore(vm, l10n),
                             const SizedBox(height: 20),
 
-                            // 5. Répartition des dépenses (donut)
+                            // 5. RÃ©partition des dÃ©penses (donut)
                             _buildSectionTitle(
-                              'Répartition des dépenses',
+                              l10n.homeSpendingBreakdown,
                               onSeeAll: () => _changeTab(1),
                               l10n: l10n,
                             ),
@@ -160,9 +164,9 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 20),
 
-                            // 6. Évolution des dépenses (barres)
+                            // 6. Ã‰volution des dÃ©penses (barres)
                             _buildSectionTitle(
-                              'Évolution hebdomadaire',
+                              l10n.homeWeeklyTrend,
                               onSeeAll: () => _changeTab(3),
                               l10n: l10n,
                             ),
@@ -187,7 +191,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                             _buildObjectivesList(vm, cur, l10n),
                             const SizedBox(height: 20),
 
-                            // 8. Transactions récentes
+                            // 8. Transactions rÃ©centes
                             _buildSectionTitle(
                               l10n.homeRecentTransactions,
                               onSeeAll: () => _changeTab(3),
@@ -206,19 +210,19 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  SECTIONS
-  // ══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-  // ── 1. Top bar ────────────────────────────────────────────
-  Widget _buildTopBar(DashboardViewModel vm, AppLocalizations l10n) {
+  // â”€â”€ 1. Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _buildTopBar(DashboardViewModel vm, AppLocalizations l10n, String locale) {
     return Row(
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${l10n.homeHello} ${vm.userName} 👋',
+              '${l10n.homeHello} ${vm.userName} ðŸ‘‹',
               style: const TextStyle(
                 color:      Colors.white,
                 fontSize:   20,
@@ -227,7 +231,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 2),
             Text(
-              _getDateString(),
+              _getDateString(locale),
               style: const TextStyle(
                 color:    Color(0xFF4A6080),
                 fontSize: 12,
@@ -236,64 +240,79 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ],
         ),
         const Spacer(),
-        GestureDetector(
-          onTap: () => Navigator.of(context).push(
-            PageRouteBuilder(
-              pageBuilder: (_, a, __) => const NotificationsScreen(),
-              transitionsBuilder: (_, a, __, child) => SlideTransition(
-                position: Tween<Offset>(
-                        begin: const Offset(1, 0), end: Offset.zero)
-                    .animate(CurvedAnimation(
-                        parent: a, curve: Curves.easeOutCubic)),
-                child: child,
-              ),
-              transitionDuration: const Duration(milliseconds: 350),
-            ),
-          ),
-          child: Stack(
-            children: [
-              Container(
-                width:  42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF1A2E52)),
-                  color:  const Color(0xFF0D1B38),
-                ),
-                child: const Icon(
-                  Icons.notifications_outlined,
-                  color: Color(0xFF8BA8D4),
-                  size:  20,
-                ),
-              ),
-              Positioned(
-                top: 8, right: 8,
-                child: Container(
-                  width:  8, height: 8,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF3EFFA8),
+        StreamBuilder<QuerySnapshot>(
+          stream: () {
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            if (uid == null) return const Stream<QuerySnapshot<Map<String, dynamic>>>.empty();
+            return FirebaseFirestore.instance
+                .collection('notifications')
+                .where('userId', isEqualTo: uid)
+                .where('read', isEqualTo: false)
+                .limit(1)
+                .snapshots();
+          }(),
+          builder: (context, snap) {
+            final hasUnread = (snap.data?.docs.isNotEmpty) ?? false;
+            return GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (_, a, __) => const NotificationsScreen(),
+                  transitionsBuilder: (_, a, __, child) => SlideTransition(
+                    position: Tween<Offset>(
+                            begin: const Offset(1, 0), end: Offset.zero)
+                        .animate(CurvedAnimation(
+                            parent: a, curve: Curves.easeOutCubic)),
+                    child: child,
                   ),
+                  transitionDuration: const Duration(milliseconds: 350),
                 ),
               ),
-            ],
-          ),
+              child: Stack(
+                children: [
+                  Container(
+                    width:  42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF1A2E52)),
+                      color:  const Color(0xFF0D1B38),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      color: Color(0xFF8BA8D4),
+                      size:  20,
+                    ),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      top: 8, right: 8,
+                      child: Container(
+                        width:  8, height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF3EFFA8),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  // ── 2. Carte solde + jauge ────────────────────────────────
+  // â”€â”€ 2. Carte solde + jauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildBalanceCard(
     DashboardViewModel vm,
     CurrencyProvider   cur,
     AppLocalizations   l10n,
     Size               size,
+    String             locale,
   ) {
     final now      = DateTime.now();
-    const months   = ['jan','fév','mar','avr','mai','jun',
-                       'jul','aoû','sep','oct','nov','déc'];
-    final monthLbl = '${months[now.month - 1]} ${now.year}';
+    final monthLbl = DateFormat('MMM yyyy', locale).format(now);
 
     return Container(
       width:   double.infinity,
@@ -306,11 +325,11 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           colors: [Color(0xFF0F2347), Color(0xFF0B1535)],
         ),
         border: Border.all(
-          color: const Color(0xFF3EFFA8).withOpacity(0.2),
+          color: const Color(0xFF3EFFA8).withValues(alpha: 0.2),
         ),
         boxShadow: [
           BoxShadow(
-            color:      const Color(0xFF3EFFA8).withOpacity(0.08),
+            color:      const Color(0xFF3EFFA8).withValues(alpha: 0.08),
             blurRadius: 30,
             offset:     const Offset(0, 8),
           ),
@@ -319,7 +338,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // En-tête : label + badge mois
+          // En-tÃªte : label + badge mois
           Row(
             children: [
               Text(
@@ -331,8 +350,8 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  color:  const Color(0xFF3EFFA8).withOpacity(0.1),
-                  border: Border.all(color: const Color(0xFF3EFFA8).withOpacity(0.3)),
+                  color:  const Color(0xFF3EFFA8).withValues(alpha: 0.1),
+                  border: Border.all(color: const Color(0xFF3EFFA8).withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -366,7 +385,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 20),
 
-          // Jauge demi-cercle (remplace la barre linéaire)
+          // Jauge demi-cercle (remplace la barre linÃ©aire)
           HalfGaugeChart(
             percentage: vm.budgetUsedPct,
             remaining:  vm.remainingBudget,
@@ -377,7 +396,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ── 3. Revenus | Dépenses ─────────────────────────────────
+  // â”€â”€ 3. Revenus | DÃ©penses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildIncomeExpenseRow(
     DashboardViewModel vm,
     CurrencyProvider   cur,
@@ -417,7 +436,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color:  const Color(0xFF0B1535),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -425,7 +444,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
             width: 36, height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
             ),
             child: Icon(icon, color: color, size: 18),
           ),
@@ -451,7 +470,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ── 4. Score de santé financière ─────────────────────────
+  // â”€â”€ 4. Score de santÃ© financiÃ¨re â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildHealthScore(DashboardViewModel vm, AppLocalizations l10n) {
     final score = vm.healthScore;
     final color = score >= 75
@@ -472,7 +491,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color:  const Color(0xFF0B1535),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -526,7 +545,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
             ),
           ),
 
-          // Mini-jauge linéaire score
+          // Mini-jauge linÃ©aire score
           Column(
             children: [
               Container(
@@ -545,7 +564,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                         gradient: LinearGradient(
                           begin:  Alignment.bottomCenter,
                           end:    Alignment.topCenter,
-                          colors: [color, color.withOpacity(0.4)],
+                          colors: [color, color.withValues(alpha: 0.4)],
                         ),
                       ),
                     ),
@@ -559,7 +578,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ── 7a. Progression moyenne des objectifs ─────────────────
+  // â”€â”€ 7a. Progression moyenne des objectifs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildObjectivesAvgProgress(DashboardViewModel vm) {
     final pct   = vm.avgObjectivesProgress;
     final color = pct >= 0.75
@@ -573,7 +592,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color:  const Color(0xFF0B1535),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -586,9 +605,9 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Progression moyenne',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context).homeAvgProgress,
+                      style: const TextStyle(
                         color:    Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -622,7 +641,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ── 7b. Liste des 3 premiers objectifs ────────────────────
+  // â”€â”€ 7b. Liste des 3 premiers objectifs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildObjectivesList(
     DashboardViewModel vm,
     CurrencyProvider   cur,
@@ -634,7 +653,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           color:  const Color(0xFF0B1535),
-          border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.5)),
+          border: Border.all(color: const Color(0xFF1A2E52).withValues(alpha: 0.5)),
         ),
         child: Center(
           child: Text(
@@ -672,7 +691,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color:  const Color(0xFF0B1535),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,7 +732,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           const SizedBox(height: 4),
           Text(
             l10n.homeObjectiveProgress(
-                '${(progress * 100).toStringAsFixed(0)}'),
+                (progress * 100).toStringAsFixed(0)),
             style: TextStyle(color: color, fontSize: 10),
           ),
         ],
@@ -721,7 +740,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ── 8. Transactions récentes ──────────────────────────────
+  // â”€â”€ 8. Transactions rÃ©centes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildTransactionsList(
     DashboardViewModel vm,
     CurrencyProvider   cur,
@@ -733,7 +752,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color:  const Color(0xFF0B1535),
-          border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.5)),
+          border: Border.all(color: const Color(0xFF1A2E52).withValues(alpha: 0.5)),
         ),
         child: Center(
           child: Text(
@@ -767,7 +786,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color:  const Color(0xFF0B1535),
-        border: Border.all(color: const Color(0xFF1A2E52).withOpacity(0.5)),
+        border: Border.all(color: const Color(0xFF1A2E52).withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
@@ -775,7 +794,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
             width: 40, height: 40,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
             ),
             child: Icon(icon, color: color, size: 18),
           ),
@@ -819,9 +838,9 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  // ══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  HELPERS
-  // ══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildSectionTitle(
     String           title, {
@@ -850,7 +869,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  /// Carte générique avec style cohérent
+  /// Carte gÃ©nÃ©rique avec style cohÃ©rent
   Widget _buildCard({required Widget child}) {
     return Container(
       width:   double.infinity,
@@ -859,11 +878,11 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(20),
         color:  const Color(0xFF0B1535),
         border: Border.all(
-          color: const Color(0xFF1A2E52).withOpacity(0.7),
+          color: const Color(0xFF1A2E52).withValues(alpha: 0.7),
         ),
         boxShadow: [
           BoxShadow(
-            color:      Colors.black.withOpacity(0.2),
+            color:      Colors.black.withValues(alpha: 0.2),
             blurRadius: 12,
             offset:     const Offset(0, 4),
           ),
@@ -873,11 +892,8 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     );
   }
 
-  String _getDateString() {
-    final now = DateTime.now();
-    const months = ['jan','fév','mar','avr','mai','jun',
-                    'jul','aoû','sep','oct','nov','déc'];
-    return '${now.day} ${months[now.month - 1]} ${now.year}';
+  String _getDateString(String locale) {
+    return DateFormat('d MMM yyyy', locale).format(DateTime.now());
   }
 
   static IconData _iconFromName(String name) {
@@ -900,9 +916,9 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-//  PAINTERS  (identiques à la version précédente)
-// ══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  PAINTERS  (identiques Ã  la version prÃ©cÃ©dente)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _HomeBgPainter extends CustomPainter {
   final double t;
@@ -924,13 +940,13 @@ class _HomeBgPainter extends CustomPainter {
       Offset(size.width * (0.1 + 0.06 * math.sin(t * math.pi)),
           size.height * 0.1),
       size.width * 0.4,
-      const Color(0xFF3EFFA8).withOpacity(0.05),
+      const Color(0xFF3EFFA8).withValues(alpha: 0.05),
     );
     drawOrb(
       Offset(size.width * 0.9,
           size.height * (0.7 + 0.05 * math.cos(t * math.pi))),
       size.width * 0.35,
-      const Color(0xFF00D4FF).withOpacity(0.04),
+      const Color(0xFF00D4FF).withValues(alpha: 0.04),
     );
   }
 
@@ -949,7 +965,7 @@ class _GridCustomPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color       = const Color(0xFF1A2E52).withOpacity(0.15)
+      ..color       = const Color(0xFF1A2E52).withValues(alpha: 0.15)
       ..strokeWidth = 0.5;
     const step = 44.0;
     for (double x = 0; x < size.width; x += step) {

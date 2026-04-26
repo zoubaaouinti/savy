@@ -1494,4 +1494,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String notifTimeDays(int n) {
     return 'Il y a $n j';
   }
+
+  @override
+  String get homeSpendingBreakdown => 'Répartition des dépenses';
+
+  @override
+  String get homeWeeklyTrend => 'Évolution hebdomadaire';
+
+  @override
+  String get homeAvgProgress => 'Progression moyenne';
 }

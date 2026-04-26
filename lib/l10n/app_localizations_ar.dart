@@ -1475,4 +1475,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String notifTimeDays(int n) {
     return 'منذ $n ي';
   }
+
+  @override
+  String get homeSpendingBreakdown => 'توزيع المصاريف';
+
+  @override
+  String get homeWeeklyTrend => 'التطور الأسبوعي';
+
+  @override
+  String get homeAvgProgress => 'متوسط التقدم';
 }

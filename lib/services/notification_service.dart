@@ -1,36 +1,12 @@
-// ══════════════════════════════════════════════════════════════
-//  SAVY – NOTIFICATION SERVICE
-//  lib/services/notification_service.dart
-//
-//  Architecture:
-//  • FCM receives push from Cloud Function (triggered by Firestore)
-//  • Foreground → flutter_local_notifications shows a heads-up banner
-//  • Background/Terminated → FCM system tray; tap opens app via navigatorKey
-//  • Token stored under users/{uid}.fcmToken in Firestore
-// ══════════════════════════════════════════════════════════════
-
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ─────────────────────────────────────────────────────────────
-//  TOP-LEVEL background handler (REQUIRED by FCM — must NOT be
-//  inside a class or it will silently fail on Android).
-// ─────────────────────────────────────────────────────────────
-@pragma('vm:entry-point')
-Future<void> firebaseBackgroundMessageHandler(RemoteMessage message) async {
-  // Firebase is already initialised by the isolate before this runs.
-  // Do lightweight work only — no UI, no Provider access.
-  debugPrint('[FCM-BG] ${message.messageId} | type=${message.data['type']}');
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Android notification channel (must match AndroidManifest.xml
-//  meta-data "com.google.firebase.messaging.default_notification_channel_id")
-// ─────────────────────────────────────────────────────────────
+// Android notification channel — must match AndroidManifest meta-data
 const AndroidNotificationChannel _savyChannel = AndroidNotificationChannel(
   'savy_channel',
   'Savy Notifications',
@@ -43,141 +19,106 @@ const AndroidNotificationChannel _savyChannel = AndroidNotificationChannel(
 class NotificationService {
   NotificationService._();
 
-  static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  // ── OneSignal credentials ────────────────────────────────────
+  static const _kAppId   = 'cbccff71-a011-4b08-8266-0335a9084da3';
+  static const _kRestKey = 'os_v2_app_zpgp64nacffqratgam22sccnunlyjosahgdey55gcgz77znxw7u4xumhhe3ak6erxgcwnrovm2azzk7gmtohnv6uw6xcenjeoibts4i'; // OneSignal → Settings → Keys & IDs
+
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
-  /// Wire this key into MaterialApp.navigatorKey so notification taps
-  /// can push routes even when launched from terminated state.
+  /// Plug into MaterialApp.navigatorKey to enable tap-navigation from
+  /// terminated state.
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // ── Dedup: avoid re-sending the same alert within one session ─
   static final Set<String> _sentKeys = {};
 
   // ────────────────────────────────────────────────────────────
   //  INIT — call once from main() AFTER Firebase.initializeApp()
   // ────────────────────────────────────────────────────────────
   static Future<void> init() async {
-    // 1. Create the Android channel (no-op on iOS)
+    // 1. Create Android notification channel
     await _local
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_savyChannel);
 
-    // 2. Initialise flutter_local_notifications
-    const androidInit =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: false, // we ask via FCM below
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
+    // 2. Init flutter_local_notifications (foreground banners)
     await _local.initialize(
-      const InitializationSettings(android: androidInit, iOS: iosInit),
-      onDidReceiveNotificationResponse: _onLocalNotificationTap,
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
+      ),
+      onDidReceiveNotificationResponse: _onLocalTap,
     );
 
-    // 3. Request permissions (iOS prompt; Android 13+ prompt)
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[FCM] Permission denied — notifications disabled');
-      return;
-    }
+    // 3. Init OneSignal — handles FCM registration + push in all app states
+    OneSignal.initialize(_kAppId);
+    await OneSignal.Notifications.requestPermission(true);
 
-    // 4. Show FCM notifications in foreground on iOS too
-    await _fcm.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 5. Register the background handler (top-level function above)
-    FirebaseMessaging.onBackgroundMessage(firebaseBackgroundMessageHandler);
-
-    // 6. Foreground messages → show local heads-up banner
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-
-    // 7. App opened from BACKGROUND via notification tap
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageNavigation);
-
-    // 8. App opened from TERMINATED state via notification tap
-    final initial = await _fcm.getInitialMessage();
-    if (initial != null) _handleMessageNavigation(initial);
-
-    // 9. Get & store FCM token for the current user (if already logged in)
-    await _refreshAndSaveToken();
-
-    // 10. Keep token fresh on rotation
-    _fcm.onTokenRefresh.listen(_saveToken);
-  }
-
-  // ────────────────────────────────────────────────────────────
-  //  Call this right after a successful login / sign-up so the
-  //  token is stored even if the user was not logged in during init().
-  // ────────────────────────────────────────────────────────────
-  static Future<void> saveTokenAfterLogin() => _refreshAndSaveToken();
-
-  // ────────────────────────────────────────────────────────────
-  //  INTERNAL TOKEN HELPERS
-  // ────────────────────────────────────────────────────────────
-  static Future<void> _refreshAndSaveToken() async {
-    final token = await _fcm.getToken();
-    if (token != null) await _saveToken(token);
-  }
-
-  static Future<void> _saveToken(String token) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        {
-          'fcmToken': token,
-          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-          'platform': _platform(),
-        },
-        SetOptions(merge: true),
+    // 4. App in foreground: intercept OneSignal notification, show our custom banner
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      event.preventDefault(); // stop OneSignal default display
+      final n = event.notification;
+      _showBanner(
+        id:    n.hashCode,
+        title: n.title ?? 'Savy',
+        body:  n.body  ?? '',
+        type:  (n.additionalData ?? {})['type'] as String?,
       );
-      debugPrint('[FCM] Token saved for $uid');
-    } catch (e) {
-      debugPrint('[FCM] Token save error: $e');
-    }
-  }
+    });
 
-  static String _platform() {
-    // Used by Cloud Function to set correct APNs/Android priority
-    try {
-      return const bool.fromEnvironment('dart.vm.product') ? 'prod' : 'debug';
-    } catch (_) {
-      return 'unknown';
-    }
+    // 5. Tap on notification (background OR terminated) → navigate
+    OneSignal.Notifications.addClickListener((event) {
+      final data = Map<String, dynamic>.from(event.notification.additionalData ?? {});
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _navigateForType(data['type'] as String?, data),
+      );
+    });
   }
 
   // ────────────────────────────────────────────────────────────
-  //  FOREGROUND: show a local heads-up notification
+  //  AUTH HELPERS — call after login / logout
   // ────────────────────────────────────────────────────────────
-  static void _onForegroundMessage(RemoteMessage message) {
-    final n = message.notification;
-    if (n == null) return;
 
+  /// Links the OneSignal subscription to the Firebase UID so we can target
+  /// this user by ID when sending pushes.
+  static Future<void> loginUser(String uid) async {
+    await OneSignal.login(uid);
+    debugPrint('[OneSignal] External ID set: $uid');
+  }
+
+  /// Unlinks the subscription on sign-out so the user stops receiving pushes.
+  static Future<void> logoutUser() async {
+    await OneSignal.logout();
+    debugPrint('[OneSignal] Logged out');
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  FOREGROUND BANNER
+  // ────────────────────────────────────────────────────────────
+  static void _showBanner({
+    required int    id,
+    required String title,
+    required String body,
+    String?         type,
+  }) {
     _local.show(
-      message.hashCode,
-      n.title ?? 'Savy',
-      n.body ?? '',
+      id,
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           _savyChannel.id,
           _savyChannel.name,
           channelDescription: _savyChannel.description,
           importance: Importance.max,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          // Colour matches Savy brand green
+          priority:   Priority.high,
+          icon:  '@mipmap/ic_launcher',
           color: const Color(0xFF3EFFA8),
         ),
         iOS: const DarwinNotificationDetails(
@@ -186,64 +127,69 @@ class NotificationService {
           presentSound: true,
         ),
       ),
-      // Payload carries the notification type for tap navigation
-      payload: message.data['type'],
+      payload: type,
     );
   }
 
   // ────────────────────────────────────────────────────────────
-  //  TAP HANDLERS
+  //  NAVIGATION ON TAP
   // ────────────────────────────────────────────────────────────
-
-  // Tapped while app is open (flutter_local_notifications callback)
-  static void _onLocalNotificationTap(NotificationResponse response) {
+  static void _onLocalTap(NotificationResponse response) {
     _navigateForType(response.payload, null);
   }
 
-  // Tapped from system tray (background / terminated)
-  static void _handleMessageNavigation(RemoteMessage message) {
-    _navigateForType(message.data['type'], message.data);
-  }
-
-  /// Route the user to the right screen based on notification type.
-  /// Extend this switch as you add more screens.
-  static void _navigateForType(
-      String? type, Map<String, dynamic>? data) {
+  static void _navigateForType(String? type, Map<String, dynamic>? data) {
     final nav = navigatorKey.currentState;
     if (nav == null) return;
+    nav.pushNamedAndRemoveUntil('/home', (r) => false);
+  }
 
-    switch (type) {
-      case 'budget_alert':
-        // Push home; the user can then tap the Budget tab
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
-        break;
-      case 'goal_reminder':
-      case 'goal_completion':
-        // You can pass goalId via data and open the detail sheet
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
-        break;
-      case 'saving_suggestion':
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
-        break;
-      case 'password_changed':
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
-        break;
-      default:
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
+  // ────────────────────────────────────────────────────────────
+  //  ONESIGNAL REST API — send push to a user by Firebase UID
+  // ────────────────────────────────────────────────────────────
+  static Future<void> _sendPush({
+    required String userId,
+    required String titleEn,
+    required String titleFr,
+    required String titleAr,
+    required String bodyEn,
+    required String bodyFr,
+    required String bodyAr,
+    required String type,
+    Map<String, String> extra = const {},
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('https://api.onesignal.com/notifications'),
+        headers: {
+          'Authorization':  'Basic $_kRestKey',
+          'Content-Type':   'application/json',
+        },
+        body: jsonEncode({
+          'app_id': _kAppId,
+          // Target the user by their Firebase UID (set via OneSignal.login)
+          'include_aliases': {
+            'external_id': [userId],
+          },
+          'target_channel': 'push',
+          // OneSignal picks the right language automatically
+          'headings': {'en': titleEn, 'fr': titleFr, 'ar': titleAr},
+          'contents': {'en': bodyEn,  'fr': bodyFr,  'ar': bodyAr},
+          'data': {'type': type, ...extra},
+        }),
+      );
+      debugPrint('[OneSignal] ${res.statusCode} — ${res.body}');
+    } catch (e) {
+      debugPrint('[OneSignal] send error: $e');
     }
   }
 
-  // ════════════════════════════════════════════════════════════
-  //  PUBLIC API — call from ViewModels
-  // ════════════════════════════════════════════════════════════
-
-  /// Low-level: write a multilingual notification to Firestore.
-  /// titleEn/bodyEn are the defaults used by FCM if no specific language
-  /// field exists. The Cloud Function reads the user's languageCode from
-  /// Firestore and picks the right field for the push title/body.
+  // ────────────────────────────────────────────────────────────
+  //  DISPATCH — write to Firestore + send OneSignal push
+  // ────────────────────────────────────────────────────────────
   static Future<void> _dispatch({
     required String userId,
-    required String title,   // EN — also the FCM fallback
+    required String title,
     required String body,
     required String type,
     String? titleFr,
@@ -252,37 +198,43 @@ class NotificationService {
     String? bodyAr,
     Map<String, String> extra = const {},
     String? dedupKey,
-    // true → stored for history only, Cloud Function skips FCM push
     bool skipPush = false,
   }) async {
     if (dedupKey != null && _sentKeys.contains(dedupKey)) return;
     if (dedupKey != null) _sentKeys.add(dedupKey);
 
     try {
+      // Write to Firestore for the in-app notification inbox
       await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': userId,
-        // EN (default / FCM fallback)
-        'title':   title,
-        'body':    body,
-        // Per-language fields — Cloud Function + Flutter app both use these
-        'titleEn': title,
-        'titleFr': titleFr ?? title,
-        'titleAr': titleAr ?? title,
-        'bodyEn':  body,
-        'bodyFr':  bodyFr ?? body,
-        'bodyAr':  bodyAr ?? body,
+        'userId':  userId,
+        'title':   title,   'body':    body,
+        'titleEn': title,   'titleFr': titleFr ?? title, 'titleAr': titleAr ?? title,
+        'bodyEn':  body,    'bodyFr':  bodyFr  ?? body,  'bodyAr':  bodyAr  ?? body,
         'type':    type,
         'data':    extra,
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
-        'sent': skipPush,
+        'sent': true, // OneSignal handles the push — Cloud Function not needed
       });
+
+      // Send push via OneSignal (works even when app is closed)
+      if (!skipPush) {
+        await _sendPush(
+          userId:   userId,
+          titleEn:  title,          titleFr: titleFr ?? title, titleAr: titleAr ?? title,
+          bodyEn:   body,           bodyFr:  bodyFr  ?? body,  bodyAr:  bodyAr  ?? body,
+          type:     type,
+          extra:    extra,
+        );
+      }
     } catch (e) {
-      debugPrint('[FCM] dispatch error: $e');
+      debugPrint('[NotificationService] dispatch error: $e');
     }
   }
 
-  // ── Typed helpers ──────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  //  PUBLIC API
+  // ════════════════════════════════════════════════════════════
 
   static Future<void> sendBudgetAlert({
     required String userId,
@@ -293,15 +245,15 @@ class NotificationService {
     final pct       = (spent / budget * 100).round();
     final remaining = (budget - spent).toStringAsFixed(2);
     return _dispatch(
-      userId: userId,
+      userId:  userId,
       title:   '⚠️ Budget Alert — $categoryName',
       body:    "You've used $pct% of your $categoryName budget. Only $remaining TND left!",
       titleFr: '⚠️ Alerte budget — $categoryName',
       bodyFr:  'Vous avez utilisé $pct% de votre budget $categoryName. Il reste $remaining TND !',
       titleAr: '⚠️ تنبيه الميزانية — $categoryName',
       bodyAr:  'استخدمت $pct% من ميزانية $categoryName. تبقّى $remaining دينار فقط!',
-      type:    'budget_alert',
-      extra:   {'categoryName': categoryName, 'pct': pct.toString()},
+      type:     'budget_alert',
+      extra:    {'categoryName': categoryName, 'pct': pct.toString()},
       dedupKey: 'budget_alert_${userId}_$categoryName',
     );
   }
@@ -310,26 +262,26 @@ class NotificationService {
     required String userId,
     required String goalId,
     required String goalName,
-    required int daysLeft,
+    required int    daysLeft,
     required double remaining,
   }) {
     final rem = remaining.toStringAsFixed(2);
     return _dispatch(
-      userId: userId,
-      title: '⏰ Goal Reminder — $goalName',
-      body: daysLeft == 0
+      userId:  userId,
+      title:   '⏰ Goal Reminder — $goalName',
+      body:    daysLeft == 0
           ? 'Today is the deadline for "$goalName"! $rem TND still needed.'
           : '$daysLeft day${daysLeft > 1 ? 's' : ''} left for "$goalName". $rem TND still needed.',
       titleFr: '⏰ Rappel d\'objectif — $goalName',
-      bodyFr: daysLeft == 0
+      bodyFr:  daysLeft == 0
           ? 'Aujourd\'hui est la date limite pour "$goalName" ! Il manque encore $rem TND.'
           : '$daysLeft jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''} pour "$goalName". Il manque encore $rem TND.',
       titleAr: '⏰ تذكير بالهدف — $goalName',
-      bodyAr: daysLeft == 0
+      bodyAr:  daysLeft == 0
           ? 'اليوم هو الموعد النهائي لـ "$goalName"! لا يزال ينقصك $rem دينار.'
           : 'متبقّي $daysLeft يوم لـ "$goalName". لا يزال ينقصك $rem دينار.',
-      type:    'goal_reminder',
-      extra:   {'goalId': goalId, 'daysLeft': daysLeft.toString()},
+      type:     'goal_reminder',
+      extra:    {'goalId': goalId, 'daysLeft': daysLeft.toString()},
       dedupKey: 'goal_reminder_${userId}_$goalId',
     );
   }
@@ -340,15 +292,15 @@ class NotificationService {
     required String goalName,
   }) {
     return _dispatch(
-      userId: userId,
+      userId:  userId,
       title:   '🎉 Goal Achieved!',
       body:    'Congratulations! You reached your "$goalName" goal. Keep up the great work!',
       titleFr: '🎉 Objectif atteint !',
       bodyFr:  'Félicitations ! Vous avez atteint votre objectif "$goalName". Continuez comme ça !',
       titleAr: '🎉 تم تحقيق الهدف!',
       bodyAr:  'تهانينا! لقد حققت هدفك "$goalName". أحسنت!',
-      type:    'goal_completion',
-      extra:   {'goalId': goalId},
+      type:     'goal_completion',
+      extra:    {'goalId': goalId},
       dedupKey: 'goal_done_${userId}_$goalId',
     );
   }
@@ -360,43 +312,38 @@ class NotificationService {
   }) {
     final amt = suggestedAmount.toStringAsFixed(2);
     return _dispatch(
-      userId: userId,
+      userId:  userId,
       title:   '💡 Saving Suggestion',
       body:    'Set aside $amt TND this week to stay on track for "$goalName".',
       titleFr: '💡 Suggestion d\'épargne',
       bodyFr:  'Mettez de côté $amt TND cette semaine pour rester sur la bonne voie pour "$goalName".',
       titleAr: '💡 اقتراح ادخار',
       bodyAr:  'خصّص $amt دينار هذا الأسبوع للبقاء على المسار الصحيح لـ "$goalName".',
-      type:    'saving_suggestion',
-      extra:   {'goalName': goalName, 'amount': amt},
+      type:     'saving_suggestion',
+      extra:    {'goalName': goalName, 'amount': amt},
       dedupKey: 'suggestion_${userId}_$goalName',
     );
   }
 
-  /// Sent after a successful password change.
-  /// push enabled → sent=false → Cloud Function sends FCM even when app is closed.
-  /// push disabled → sent=true → history-only, no FCM push.
   static Future<void> sendPasswordChangedAlert({
     required String userId,
     required String email,
   }) async {
     final prefs       = await SharedPreferences.getInstance();
     final pushEnabled = prefs.getBool('notif_security_alert') ?? true;
-
     return _dispatch(
-      userId: userId,
+      userId:  userId,
       title:   '🔐 Password changed',
       body:    'Your password for $email was just updated. If this wasn\'t you, secure your account immediately.',
       titleFr: '🔐 Mot de passe modifié',
       bodyFr:  'Le mot de passe de votre compte $email vient d\'être mis à jour. Si ce n\'était pas vous, sécurisez votre compte immédiatement.',
       titleAr: '🔐 تم تغيير كلمة المرور',
       bodyAr:  'تم تحديث كلمة مرور حسابك $email للتو. إذا لم تكن أنت، فقم بتأمين حسابك فوراً.',
-      type:    'password_changed',
+      type:     'password_changed',
       skipPush: !pushEnabled,
     );
   }
 
-  // ── Legacy helper ───────────────────────────────────────────
   static Future<void> sendNotificationToUser({
     required String userId,
     required String title,
@@ -404,6 +351,11 @@ class NotificationService {
     required String type,
     Map<String, String>? customData,
   }) =>
-      _dispatch(userId: userId, title: title, body: body, type: type,
-          extra: customData ?? {});
+      _dispatch(
+        userId: userId,
+        title:  title,
+        body:   body,
+        type:   type,
+        extra:  customData ?? {},
+      );
 }

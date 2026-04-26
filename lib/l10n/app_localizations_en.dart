@@ -1484,4 +1484,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String notifTimeDays(int n) {
     return '${n}d ago';
   }
+
+  @override
+  String get homeSpendingBreakdown => 'Spending breakdown';
+
+  @override
+  String get homeWeeklyTrend => 'Weekly trend';
+
+  @override
+  String get homeAvgProgress => 'Average progress';
 }

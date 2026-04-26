@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
 
+    <!-- Required for FCM push notifications on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <!-- Permissions pour les médias (Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 
@@ -42,6 +45,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
+        <!-- FCM: default notification channel for background/terminated messages -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="savy_channel"/>
+
+        <!-- FCM: show notification icon in status bar (white monochrome drawable) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher"/>
     </application>
 
     <queries>

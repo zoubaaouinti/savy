@@ -28,12 +28,19 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ✅ Initialize notifications (FCM + local notifications)
+  // ✅ Initialize notifications (OneSignal + local notifications)
   await NotificationService.init();
 
-  // ✅ Re-save FCM token whenever auth state changes (covers all sign-in paths)
+  // ✅ Link OneSignal subscription to Firebase UID on every login
+  String? _lastUid;
   FirebaseAuth.instance.authStateChanges().listen((user) {
-    if (user != null) NotificationService.saveTokenAfterLogin();
+    if (user != null && user.uid != _lastUid) {
+      _lastUid = user.uid;
+      NotificationService.loginUser(user.uid);
+    } else if (user == null && _lastUid != null) {
+      _lastUid = null;
+      NotificationService.logoutUser();
+    }
   });
 
   SystemChrome.setPreferredOrientations([
