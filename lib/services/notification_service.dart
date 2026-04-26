@@ -21,7 +21,7 @@ class NotificationService {
 
   // ── OneSignal credentials ────────────────────────────────────
   static const _kAppId   = 'cbccff71-a011-4b08-8266-0335a9084da3';
-  static const _kRestKey = 'os_v2_app_zpgp64nacffqratgam22sccnunlyjosahgdey55gcgz77znxw7u4xumhhe3ak6erxgcwnrovm2azzk7gmtohnv6uw6xcenjeoibts4i'; // OneSignal → Settings → Keys & IDs
+  static const _kRestKey = 'os_v2_app_zpgp64nacffqratgam22sccnun4fzr3dhtcevl4lkizkjmmqks2hbxiv2qudglb32ssmare7dfvwchswkc2gdzjbntbzbwljtfhz57i'; // OneSignal → Settings → Keys & IDs
 
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
@@ -159,22 +159,24 @@ class NotificationService {
     Map<String, String> extra = const {},
   }) async {
     try {
+      // Use the app's chosen language, not the device system language
+      final prefs = await SharedPreferences.getInstance();
+      final lang  = prefs.getString('app_locale') ?? 'fr';
+      final title = lang == 'ar' ? titleAr : lang == 'en' ? titleEn : titleFr;
+      final body  = lang == 'ar' ? bodyAr  : lang == 'en' ? bodyEn  : bodyFr;
+
       final res = await http.post(
         Uri.parse('https://api.onesignal.com/notifications'),
         headers: {
-          'Authorization':  'Basic $_kRestKey',
-          'Content-Type':   'application/json',
+          'Authorization': 'Key $_kRestKey',
+          'Content-Type':  'application/json',
         },
         body: jsonEncode({
           'app_id': _kAppId,
-          // Target the user by their Firebase UID (set via OneSignal.login)
-          'include_aliases': {
-            'external_id': [userId],
-          },
+          'include_aliases': {'external_id': [userId]},
           'target_channel': 'push',
-          // OneSignal picks the right language automatically
-          'headings': {'en': titleEn, 'fr': titleFr, 'ar': titleAr},
-          'contents': {'en': bodyEn,  'fr': bodyFr,  'ar': bodyAr},
+          'headings': {'en': title},
+          'contents': {'en': body},
           'data': {'type': type, ...extra},
         }),
       );

@@ -106,27 +106,41 @@ class ObjectivesViewModel extends ChangeNotifier {
 
     try {
       final userRef = _firestore.collection('users').doc(_uid);
-      final objRef = _goalsRef.doc(id);
+      final objRef  = _goalsRef.doc(id);
+
+      // Compute real available balance = initialBalance + revenues - expenses
+      // (same formula as the dashboard)
+      final userSnap = await userRef.get();
+      final userData = (userSnap.data() as Map<String, dynamic>?) ?? {};
+      final initialBalance = (userData['initialBalance'] ?? 0).toDouble();
+
+      final revSnap = await userRef.collection('revenues').get();
+      final totalRevenues = revSnap.docs.fold<double>(
+          0, (s, d) => s + ((d.data()['amount'] ?? 0).toDouble()));
+
+      final budSnap = await userRef.collection('budget').get();
+      final totalExpenses = budSnap.docs.fold<double>(
+          0, (s, d) => s + ((d.data()['spent'] ?? 0).toDouble()));
+
+      final availableBalance = initialBalance + totalRevenues - totalExpenses;
+
+      if (availableBalance < amount) {
+        return 'Solde insuffisant (${availableBalance.toStringAsFixed(2)} TND disponibles).';
+      }
 
       final error = await _firestore.runTransaction((tx) async {
-        final userSnap = await tx.get(userRef);
         final objSnap = await tx.get(objRef);
 
         if (!objSnap.exists) return 'Objectif introuvable.';
 
         final data    = objSnap.data() as Map<String, dynamic>;
         final current = (data['currentAmount'] ?? 0).toDouble();
-        target        = (data['targetAmount']  ?? 0).toDouble();
-        goalName      = data['name'] as String?;
-
-        final balance = (userSnap.data()?['initialBalance'] ?? 0).toDouble();
-        if (balance < amount) {
-          return 'Solde insuffisant (${balance.toStringAsFixed(2)} TND disponibles).';
-        }
+        target   = (data['targetAmount'] ?? 0).toDouble();
+        goalName = data['name'] as String?;
 
         newCurrent = (current + amount).clamp(0.0, target!);
         tx.update(objRef,  {'currentAmount': newCurrent});
-        tx.update(userRef, {'initialBalance': balance - amount});
+        tx.update(userRef, {'initialBalance': initialBalance - amount});
         return null;
       });
 
