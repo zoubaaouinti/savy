@@ -43,36 +43,30 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_savyChannel);
 
-    // 2. Init flutter_local_notifications (foreground banners)
+    // 2. Init flutter_local_notifications
     await _local.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
         iOS: DarwinInitializationSettings(
-          requestAlertPermission: false,
-          requestBadgePermission: false,
-          requestSoundPermission: false,
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
         ),
       ),
       onDidReceiveNotificationResponse: _onLocalTap,
     );
 
-    // 3. Init OneSignal — handles FCM registration + push in all app states
+    // Request Android 13+ notification permission via flutter_local_notifications
+    await _local
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+
+    // 3. Init OneSignal — handles FCM registration + push in background/terminated
     OneSignal.initialize(_kAppId);
     await OneSignal.Notifications.requestPermission(true);
 
-    // 4. App in foreground: intercept OneSignal notification, show our custom banner
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      event.preventDefault(); // stop OneSignal default display
-      final n = event.notification;
-      _showBanner(
-        id:    n.hashCode,
-        title: n.title ?? 'Savy',
-        body:  n.body  ?? '',
-        type:  (n.additionalData ?? {})['type'] as String?,
-      );
-    });
-
-    // 5. Tap on notification (background OR terminated) → navigate
+    // 4. Tap on notification (background OR terminated) → navigate
     OneSignal.Notifications.addClickListener((event) {
       final data = Map<String, dynamic>.from(event.notification.additionalData ?? {});
       WidgetsBinding.instance.addPostFrameCallback(
@@ -118,7 +112,7 @@ class NotificationService {
           channelDescription: _savyChannel.description,
           importance: Importance.max,
           priority:   Priority.high,
-          icon:  '@mipmap/ic_launcher',
+          icon:  '@drawable/ic_notification',
           color: const Color(0xFF3EFFA8),
         ),
         iOS: const DarwinNotificationDetails(
@@ -206,6 +200,12 @@ class NotificationService {
     if (dedupKey != null) _sentKeys.add(dedupKey);
 
     try {
+      // Resolve localized text for the local banner
+      final prefs = await SharedPreferences.getInstance();
+      final lang  = prefs.getString('app_locale') ?? 'fr';
+      final localTitle = lang == 'ar' ? (titleAr ?? title) : lang == 'en' ? title : (titleFr ?? title);
+      final localBody  = lang == 'ar' ? (bodyAr  ?? body)  : lang == 'en' ? body  : (bodyFr  ?? body);
+
       // Write to Firestore for the in-app notification inbox
       await FirebaseFirestore.instance.collection('notifications').add({
         'userId':  userId,
@@ -216,10 +216,20 @@ class NotificationService {
         'data':    extra,
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
-        'sent': true, // OneSignal handles the push — Cloud Function not needed
+        'sent': true,
       });
 
-      // Send push via OneSignal (works even when app is closed)
+      // Always show a local system notification (visible in the status bar)
+      if (!skipPush) {
+        _showBanner(
+          id:    DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          title: localTitle,
+          body:  localBody,
+          type:  type,
+        );
+      }
+
+      // Also send via OneSignal for background / terminated state
       if (!skipPush) {
         await _sendPush(
           userId:   userId,

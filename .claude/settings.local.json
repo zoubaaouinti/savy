@@ -15,7 +15,8 @@
       "PowerShell(py --version)",
       "Bash(npm --version)",
       "Bash(npm list *)",
-      "Bash(flutter clean *)"
+      "Bash(flutter clean *)",
+      "Bash(adb devices *)"
     ]
   }
 }

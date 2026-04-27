@@ -56,6 +56,14 @@ class _ObjectivesView extends StatefulWidget {
 class _ObjectivesViewState extends State<_ObjectivesView> {
   SortOption _currentSort = SortOption.dateDesc;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ObjectivesViewModel>().checkDeadlineReminders();
+    });
+  }
+
   // ── Helper: get localized label for a SortOption ──────────
   String _sortLabel(SortOption option, AppLocalizations l10n) {
     switch (option) {

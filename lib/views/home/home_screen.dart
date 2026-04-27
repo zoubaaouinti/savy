@@ -216,6 +216,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
 
   // ── 1. Top bar ────────────────────────────────────────────
   Widget _buildTopBar(DashboardViewModel vm, AppLocalizations l10n) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     return Row(
       children: [
         Column(
@@ -240,33 +241,58 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ],
         ),
         const Spacer(),
-        Stack(
-          children: [
-            Container(
-              width:  42,
-              height: 42,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF1A2E52)),
-                color:  const Color(0xFF0D1B38),
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NotificationsScreen(),
               ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                color: Color(0xFF8BA8D4),
-                size:  20,
-              ),
-            ),
-            Positioned(
-              top: 8, right: 8,
-              child: Container(
-                width:  8, height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF3EFFA8),
-                ),
-              ),
-            ),
-          ],
+            );
+          },
+          child: StreamBuilder<QuerySnapshot>(
+            stream: uid == null
+                ? null
+                : FirebaseFirestore.instance
+                    .collection('notifications')
+                    .where('userId', isEqualTo: uid)
+                    .where('read', isEqualTo: false)
+                    .limit(1)
+                    .snapshots(),
+            builder: (context, snap) {
+              final hasUnread = (snap.data?.docs.isNotEmpty) ?? false;
+              return Stack(
+                children: [
+                  Container(
+                    width:  42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF1A2E52)),
+                      color:  const Color(0xFF0D1B38),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      color: Color(0xFF8BA8D4),
+                      size:  20,
+                    ),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      top: 8, right: 8,
+                      child: Container(
+                        width:  8, height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF3EFFA8),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ],
     );

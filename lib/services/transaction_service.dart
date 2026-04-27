@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/budget_models.dart';
 import '../models/export_models.dart';
+import 'notification_service.dart';
 
 class TransactionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -81,9 +82,37 @@ class TransactionService {
       );
 
       await _updateBudgetSpent(categoryId, amount);
+      await _checkBudgetAlert(categoryId);
       print('✅ Dépense ajoutée: $iconName - $amount TND');
     } catch (e) {
       throw Exception('Erreur lors de l\'ajout de la dépense: $e');
+    }
+  }
+
+  Future<void> _checkBudgetAlert(String categoryId) async {
+    if (_userId.isEmpty) return;
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('budget')
+          .doc(categoryId)
+          .get();
+      if (!doc.exists) return;
+      final data   = doc.data()!;
+      final spent  = (data['spent']  ?? 0).toDouble();
+      final budget = (data['budget'] ?? 0).toDouble();
+      final name   = data['name'] as String? ?? '';
+      if (budget > 0 && spent / budget >= 0.90) {
+        await NotificationService.sendBudgetAlert(
+          userId:       _userId,
+          categoryName: name,
+          spent:        spent,
+          budget:       budget,
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur vérif alerte budget: $e');
     }
   }
 
