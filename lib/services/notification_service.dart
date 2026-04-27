@@ -360,4 +360,22 @@ class NotificationService {
         type:   type,
         extra:  customData ?? {},
       );
+
+  static Future<void> sendHealthScoreAlert({
+    required String userId,
+    required int score,
+  }) {
+    return _dispatch(
+      userId:   userId,
+      title:    '🚨 Critical Financial Health Alert',
+      body:     'Your financial health score has dropped to $score/100. Immediate action is needed to get back on track.',
+      titleFr:  '🚨 Alerte santé financière critique',
+      bodyFr:   'Votre score de santé financière est tombé à $score/100. Une action immédiate est nécessaire pour vous redresser.',
+      titleAr:  '🚨 تنبيه حرج: الصحة المالية',
+      bodyAr:   'انخفض مؤشر صحتك المالية إلى $score/100. يلزم اتخاذ إجراء فوري للتعافي.',
+      type:     'health_score_alert',
+      extra:    {'score': score.toString()},
+      dedupKey: 'health_score_alert_${userId}_$score',
+    );
+  }
 }

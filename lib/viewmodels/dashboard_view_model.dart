@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/budget_models.dart';
 import '../models/objective.dart';
+import '../services/notification_service.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  VIEWMODEL – DashboardViewModel
@@ -68,6 +69,9 @@ class DashboardViewModel extends ChangeNotifier {
 
   // Streams chargés (évite de passer isLoading=false trop tôt)
   final Set<String> _ready = {};
+
+  // Tracks last score for which a health alert was sent (avoids spam)
+  int _lastHealthAlertScore = -1;
 
   // ── État exposé ────────────────────────────────────────────
   bool   isLoading           = true;
@@ -263,6 +267,20 @@ class DashboardViewModel extends ChangeNotifier {
     totalBalance             = _cachedInitialBalance + income - expenses;
     userName                 = _cachedName;
     healthScore              = score;
+
+    // Fire a push alert when the score is critically low (≤ 30)
+    // and reset dedup when score recovers so a future drop re-alerts
+    const _kCriticalThreshold = 30;
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      if (score <= _kCriticalThreshold && score != _lastHealthAlertScore) {
+        _lastHealthAlertScore = score;
+        NotificationService.sendHealthScoreAlert(userId: uid, score: score);
+      } else if (score > _kCriticalThreshold) {
+        _lastHealthAlertScore = -1; // reset so next drop re-triggers
+      }
+    }
+
     budgetCategories         = categories;
     topObjectives            = objectives.where((o) => !o.isCompleted).take(3).toList();
     recentTransactions       = recentTxs;
