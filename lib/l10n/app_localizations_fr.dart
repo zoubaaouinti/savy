@@ -517,6 +517,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get budgetTabRevenues => 'Revenus';
 
   @override
+  String get budgetTabExpenses => 'Dépenses';
+
+  @override
   String get budgetTotal => 'Budget total';
 
   @override

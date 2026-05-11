@@ -201,6 +201,7 @@
   "budgetSubtitle": "Manage your expenses",
   "budgetTabBudget": "Budget",
   "budgetTabRevenues": "Income",
+  "budgetTabExpenses": "Expense",
   "budgetTotal": "Total budget",
   "budgetSpent": "Spent",
   "budgetRemaining": "Remaining",

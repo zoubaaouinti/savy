@@ -647,7 +647,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
         tabs: [
           Tab(text: l10n.budgetTabBudget),
-          Tab(text: l10n.budgetTabRevenues),
+          Tab(text: l10n.budgetTabExpenses),
           Tab(text: l10n.budgetTabRevenues),
         ],
       ),

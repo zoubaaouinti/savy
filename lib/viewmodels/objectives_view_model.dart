@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/objective.dart';
+import '../models/smart_engine_models.dart';
 import '../services/notification_service.dart';
+import '../services/smart_engine.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  VIEWMODEL – ObjectivesViewModel
@@ -32,11 +34,52 @@ class ObjectivesViewModel extends ChangeNotifier {
       .map((snap) =>
       snap.docs.map((d) => Objective.fromFirestore(d)).toList());
 
-  // ── Suggestion IA — DÉSACTIVÉE (TODO: Sprint IA) ──────────
+  /// Returns the monthly saving suggestion for a single objective given the
+  /// current income/expense context.  Delegates to [SmartEngine].
   double computeSuggestion(
-      double target, double current, DateTime? deadline) {
-    return 0; // sera calculé par l'IA dans un sprint futur
+    double target,
+    double current,
+    DateTime? deadline, {
+    double totalIncome = 0,
+    double totalExpenses = 0,
+    int priority = 1,
+    String objectiveId = '',
+  }) {
+    if (totalIncome <= 0 || deadline == null) return 0;
+
+    final fakeObj = Objective(
+      id: objectiveId.isEmpty ? '_tmp' : objectiveId,
+      name: '',
+      targetAmount: target,
+      currentAmount: current,
+      priority: priority,
+      deadline: '',
+      deadlineTimestamp: Timestamp.fromDate(deadline),
+      icon: '',
+      color: '',
+      suggestion: 0,
+    );
+
+    final suggestions = SmartEngine.computeSuggestions(
+      totalIncome: totalIncome,
+      totalExpenses: totalExpenses,
+      objectives: [fakeObj],
+    );
+
+    return suggestions.isEmpty ? 0 : suggestions.first.suggestedAmount;
   }
+
+  /// Returns the full [SavingSuggestion] list for a set of objectives.
+  List<SavingSuggestion> computeSuggestionsForAll(
+    List<Objective> objectives, {
+    required double totalIncome,
+    required double totalExpenses,
+  }) =>
+      SmartEngine.computeSuggestions(
+        totalIncome: totalIncome,
+        totalExpenses: totalExpenses,
+        objectives: objectives,
+      );
 
   // ── Totaux pour la progress bar globale ───────────────────
   Map<String, double> computeTotals(List<Objective> objectives) {

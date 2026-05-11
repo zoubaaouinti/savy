@@ -1066,6 +1066,12 @@ abstract class AppLocalizations {
   /// **'Revenus'**
   String get budgetTabRevenues;
 
+  /// No description provided for @budgetTabExpenses.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dépenses'**
+  String get budgetTabExpenses;
+
   /// No description provided for @budgetTotal.
   ///
   /// In fr, this message translates to:

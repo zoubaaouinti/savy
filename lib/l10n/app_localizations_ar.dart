@@ -514,6 +514,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get budgetTabRevenues => 'الدخل';
 
   @override
+  String get budgetTabExpenses => 'المصاريف';
+
+  @override
   String get budgetTotal => 'إجمالي الميزانية';
 
   @override

@@ -11,12 +11,14 @@ import '../../models/objective.dart';
 import '../../providers/currency_provider.dart';
 import '../../utils/category_translator.dart';
 import '../../viewmodels/dashboard_view_model.dart';
+import '../../viewmodels/smart_engine_view_model.dart';
 import '../../widgets/charts/donut_chart.dart';
 import '../../widgets/charts/half_gauge_chart.dart';
 import '../../widgets/charts/weekly_bar_chart.dart';
 import '../../widgets/kpi_dashboard.dart';
 import '../mainLayout/main_layout.dart';
 import '../notifications/notifications_screen.dart';
+import 'ai_suggestions_sheet.dart';
 
 // ══════════════════════════════════════════════════════════════
 //  HOME SCREEN – Tableau de bord dynamique
@@ -31,8 +33,11 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => DashboardViewModel()..init(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => DashboardViewModel()..init()),
+        ChangeNotifierProvider(create: (_) => SmartEngineViewModel()..init()),
+      ],
       child: const _HomeView(),
     );
   }
@@ -84,9 +89,30 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
     context.findAncestorStateOfType<MainLayoutState>()?.setCurrentIndex(index);
   }
 
+  // ── AI suggestions bottom sheet ───────────────────────────
+  void _showAiSuggestionsSheet() {
+    HapticFeedback.mediumImpact();
+    final smVm = context.read<SmartEngineViewModel>();
+    final cur  = context.read<CurrencyProvider>();
+    showModalBottomSheet<void>(
+      context:            context,
+      isScrollControlled: true,
+      backgroundColor:    Colors.transparent,
+      useSafeArea:        true,
+      builder: (_) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: smVm),
+          ChangeNotifierProvider.value(value: cur),
+        ],
+        child: const AiSuggestionsSheet(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm   = context.watch<DashboardViewModel>();
+    final smVm = context.watch<SmartEngineViewModel>();
     final cur  = context.watch<CurrencyProvider>();
     final l10n = AppLocalizations.of(context);
     final size = MediaQuery.of(context).size;
@@ -134,7 +160,7 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
                             const SizedBox(height: 20),
 
                             // 1. En-tête : bonjour + notifications
-                            _buildTopBar(vm, l10n),
+                            _buildTopBar(vm, smVm, l10n),
                             const SizedBox(height: 24),
 
                             // 2. Carte solde + jauge demi-cercle
@@ -147,6 +173,10 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
 
                             // 4. Score de santé financière
                             _buildHealthScore(vm, l10n),
+                            const SizedBox(height: 20),
+
+                            // 4b. Suggestions IA
+                            _buildAiSuggestionsCard(smVm),
                             const SizedBox(height: 20),
 
                             // 5. Répartition des dépenses (donut)
@@ -215,7 +245,11 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
   // ══════════════════════════════════════════════════════════
 
   // ── 1. Top bar ────────────────────────────────────────────
-  Widget _buildTopBar(DashboardViewModel vm, AppLocalizations l10n) {
+  Widget _buildTopBar(
+    DashboardViewModel   vm,
+    SmartEngineViewModel smVm,
+    AppLocalizations     l10n,
+  ) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return Row(
       children: [
@@ -241,6 +275,44 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
           ],
         ),
         const Spacer(),
+
+        // ── AI suggestions icon button ─────────────────────
+        GestureDetector(
+          onTap: _showAiSuggestionsSheet,
+          child: Stack(
+            children: [
+              Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color:  const Color(0xFF3EFFA8).withOpacity(0.1),
+                  border: Border.all(
+                    color: const Color(0xFF3EFFA8).withOpacity(0.35),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF3EFFA8),
+                  size:  19,
+                ),
+              ),
+              // Badge: shows count when suggestions are pending
+              if (smVm.pendingCount > 0)
+                Positioned(
+                  top: 6, right: 6,
+                  child: Container(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF00D4FF),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+
         GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
@@ -570,6 +642,136 @@ class _HomeViewState extends State<_HomeView> with TickerProviderStateMixin {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── 4b. AI Suggestions card ───────────────────────────────
+  Widget _buildAiSuggestionsCard(SmartEngineViewModel smVm) {
+    final count      = smVm.pendingCount;
+    final hasPending = count > 0;
+
+    return GestureDetector(
+      onTap: smVm.isLoading ? null : _showAiSuggestionsSheet,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve:    Curves.easeOut,
+        padding:  const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin:  Alignment.topLeft,
+            end:    Alignment.bottomRight,
+            colors: hasPending
+                ? [const Color(0xFF0A2018), const Color(0xFF091625)]
+                : [const Color(0xFF0B1535), const Color(0xFF0B1535)],
+          ),
+          border: Border.all(
+            color: hasPending
+                ? const Color(0xFF3EFFA8).withOpacity(0.35)
+                : const Color(0xFF1A2E52).withOpacity(0.7),
+          ),
+          boxShadow: hasPending
+              ? [
+                  BoxShadow(
+                    color:      const Color(0xFF3EFFA8).withOpacity(0.1),
+                    blurRadius: 20,
+                    offset:     const Offset(0, 6),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            // AI icon — gradient when active, muted when no suggestions
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: hasPending
+                    ? const LinearGradient(
+                        colors: [Color(0xFF3EFFA8), Color(0xFF00D4FF)],
+                      )
+                    : null,
+                color: hasPending ? null : const Color(0xFF0D1B38),
+                border: hasPending
+                    ? null
+                    : Border.all(color: const Color(0xFF1A2E52)),
+              ),
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                color: hasPending ? Colors.black : const Color(0xFF4A6080),
+                size:  22,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Suggestions IA',
+                    style: TextStyle(
+                      color:      Colors.white,
+                      fontSize:   15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      key: ValueKey('$hasPending-$count'),
+                      smVm.isLoading
+                          ? 'Analyse en cours...'
+                          : hasPending
+                              ? '$count suggestion${count > 1 ? 's' : ''} '
+                                'personnalisée${count > 1 ? 's' : ''}'
+                              : 'Aucune suggestion disponible',
+                      style: TextStyle(
+                        color: hasPending
+                            ? const Color(0xFF3EFFA8)
+                            : const Color(0xFF4A6080),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Arrow / spinner
+            if (smVm.isLoading)
+              const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(Color(0xFF4A6080)),
+                ),
+              )
+            else
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 350),
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: hasPending
+                      ? const Color(0xFF3EFFA8).withOpacity(0.15)
+                      : const Color(0xFF0D1B38),
+                ),
+                child: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: hasPending
+                      ? const Color(0xFF3EFFA8)
+                      : const Color(0xFF4A6080),
+                  size: 14,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
